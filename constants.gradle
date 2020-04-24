@@ -1,0 +1,8 @@
+project.ext {
+    compileSdkVersion = 29
+    buildToolsVersion = '29.0.3'
+    minSdkVersion = 21    // 5.0
+    targetSdkVersion = 29 // 10.0
+
+    androidXAnnotationVersion = '1.1.0'
+}
