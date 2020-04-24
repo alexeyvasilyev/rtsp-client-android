@@ -1,5 +1,5 @@
 # rtsp-client-android
-Lightweight RTSP client for Android
+Lightweight RTSP client library for Android written on Java.
 
 ## Features:
 - Android min API 21.
@@ -7,6 +7,7 @@ Lightweight RTSP client for Android
 - Basic/Digest authentification.
 
 ## How to use:
+```
 RtspClient.RtspClientListener rtspClientListener = new RtspClient.RtspClientListener() {
     @Override
     public void onRtspConnecting() {
@@ -46,3 +47,4 @@ RtspClient rtspClient = new RtspClient();
 // Blocking call untill stopped is true or connection failed
 rtspClient.process(sslSocket, streamUrl, username, password, stopped, rtspClientListener);
 NetUtils.closeSocket(sslSocket);
+```
