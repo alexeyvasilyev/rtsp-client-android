@@ -42,7 +42,9 @@ String username = "admin";
 String password = "secret";
 AtomicBoolean stopped = new AtomicBoolean(false);
 SSLSocket sslSocket = NetUtils.createSslSocketAndConnect(uri.getHost(), uri.getPort(), 10000);
+
 // Blocking call until stopped variable is true or connection failed
 new RtspClient().process(sslSocket, streamUrl, username, password, stopped, rtspClientListener);
+
 NetUtils.closeSocket(sslSocket);
 ```
