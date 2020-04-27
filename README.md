@@ -7,6 +7,21 @@ Lightweight RTSP client library for Android written on Java.
 - Basic/Digest authentification.
 - Supports majority of RTSP IP cameras.
 
+## Compile
+
+To use this library in your project with gradle add this to your build.gradle:
+
+```gradle
+allprojects {
+  repositories {
+    maven { url 'https://jitpack.io' }
+  }
+}
+dependencies {
+  implementation 'com.github.alexeyvasilyev:rtsp-client-android:1.0.0'
+}
+```
+
 ## How to use:
 ```java
 RtspClient.RtspClientListener rtspClientListener = new RtspClient.RtspClientListener() {
