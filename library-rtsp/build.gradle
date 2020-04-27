@@ -1,5 +1,7 @@
 apply from: '../constants.gradle'
 apply plugin: 'com.android.library'
+apply plugin: 'com.github.dcendents.android-maven'
+group = 'com.github.alexeyvasilyev'
 
 android {
     compileSdkVersion project.ext.compileSdkVersion
@@ -8,6 +10,8 @@ android {
     defaultConfig {
         minSdkVersion project.ext.minSdkVersion
         targetSdkVersion project.ext.targetSdkVersion
+        versionName project.ext.releaseVersion
+        versionCode project.ext.releaseVersionCode
     }
 }
 
