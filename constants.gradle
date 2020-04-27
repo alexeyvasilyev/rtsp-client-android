@@ -3,8 +3,8 @@ project.ext {
     buildToolsVersion = '29.0.3'
     minSdkVersion = 21    // 5.0
     targetSdkVersion = 29 // 10.0
-    releaseVersion = "1.0.0"
-    releaseVersionCode = 100
+    releaseVersion = "1.0.1"
+    releaseVersionCode = 101
 
     androidXAnnotationVersion = '1.1.0'
 }

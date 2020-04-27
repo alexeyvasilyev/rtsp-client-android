@@ -318,12 +318,13 @@ public final class VideoCodecUtils {
             this.length = length;
         }
     }
-//    public static int getH264NalUnitsNumber(
-//            @NonNull byte[] data,
-//            int    dataOffset,
-//            int    length) {
-//        return getH264NalUnits(data, dataOffset, length, new ArrayList<>());
-//    }
+
+   public static int getH264NalUnitsNumber(
+           @NonNull byte[] data,
+           int    dataOffset,
+           int    length) {
+       return getH264NalUnits(data, dataOffset, length, new ArrayList<>());
+   }
 
     public static int getH264NalUnits(
             @NonNull byte[] data,
@@ -391,38 +392,38 @@ public final class VideoCodecUtils {
         return nalUnits;
     }
 
-//    // TODO: Code has a BUG! Sometimes it goes to infinite loop!
-//    public static int searchForH264NalUnitByType(
-//            @NonNull byte[] data,
-//            int    offset,
-//            int    length,
-//            int    byUnitType) {
-//
-//        AtomicInteger nalUnitPrefixSize = new AtomicInteger(-1);
-//        long timestamp = System.currentTimeMillis();
-//
-//        while (true) {
-//            int nalUnitIndex = searchForH264NalUnitStart(data, offset, length, nalUnitPrefixSize);
-//            if (nalUnitIndex >= 0) {
-//                int nalUnitOffset = nalUnitIndex + nalUnitPrefixSize.get();
-//                byte nalUnitTypeOctet = data[nalUnitOffset];
-//                byte nalUnitType = (byte)(nalUnitTypeOctet & 0x1f);
-//                if (nalUnitType == byUnitType) {
-//                    return nalUnitIndex;
-//                }
-//                offset = nalUnitOffset;
-//
-//                // Check that we are not too long here
-//                if (System.currentTimeMillis() - timestamp > 100) {
-//                    Log.w(TAG, "Cannot process data within 100 msec in " + length + " bytes");
-//                    break;
-//                }
-//            } else {
-//                break;
-//            }
-//        }
-//        return -1;
-//    }
+   // TODO: Code has a BUG! Sometimes it goes to infinite loop!
+   public static int searchForH264NalUnitByType(
+           @NonNull byte[] data,
+           int    offset,
+           int    length,
+           int    byUnitType) {
+
+       AtomicInteger nalUnitPrefixSize = new AtomicInteger(-1);
+       long timestamp = System.currentTimeMillis();
+
+       while (true) {
+           int nalUnitIndex = searchForH264NalUnitStart(data, offset, length, nalUnitPrefixSize);
+           if (nalUnitIndex >= 0) {
+               int nalUnitOffset = nalUnitIndex + nalUnitPrefixSize.get();
+               byte nalUnitTypeOctet = data[nalUnitOffset];
+               byte nalUnitType = (byte)(nalUnitTypeOctet & 0x1f);
+               if (nalUnitType == byUnitType) {
+                   return nalUnitIndex;
+               }
+               offset = nalUnitOffset;
+
+               // Check that we are not too long here
+               if (System.currentTimeMillis() - timestamp > 100) {
+                   Log.w(TAG, "Cannot process data within 100 msec in " + length + " bytes");
+                   break;
+               }
+           } else {
+               break;
+           }
+       }
+       return -1;
+   }
 
 //    // 00 00 00 01 .. .. .. .. .. .. 00 00 00 01 .. .. .. ..
 //    // 0 0 0 1 103 66 -128 30 -38 2 -128 -10 -108 -126 -127 1 3 104 80 -102 -128 0 0 0 1 104 -50 6 -30
