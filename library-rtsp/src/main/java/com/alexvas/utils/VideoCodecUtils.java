@@ -323,7 +323,7 @@ public final class VideoCodecUtils {
            @NonNull byte[] data,
            int    dataOffset,
            int    length) {
-       return getH264NalUnits(data, dataOffset, length, new ArrayList<>());
+       return getH264NalUnits(data, dataOffset, length, new ArrayList<NalUnit>());
    }
 
     public static int getH264NalUnits(
