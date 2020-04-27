@@ -5,6 +5,7 @@ Lightweight RTSP client library for Android written on Java.
 - Android min API 21.
 - RTSP/RTSPS over TCP.
 - Basic/Digest authentification.
+- Supports majority of RTSP IP cameras.
 
 ## How to use:
 ```java
