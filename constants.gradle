@@ -7,4 +7,5 @@ project.ext {
     releaseVersionCode = 101
 
     androidXAnnotationVersion = '1.1.0'
+    androidXAppcompatVersion = '1.1.0'
 }

@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Rtsp demo</string>
+    <string name="title_live">Live</string>
+    <string name="title_logs">Logs</string>
+</resources>
