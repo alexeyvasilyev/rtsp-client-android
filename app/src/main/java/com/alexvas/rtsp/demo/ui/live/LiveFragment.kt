@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class LiveFragment : Fragment(), SurfaceHolder.Callback {
 
+    private val DEFAULT_RTSP_PORT = 554
     private val TAG: String = LiveFragment::class.java.simpleName
     private val DEBUG = true
 
@@ -74,9 +75,11 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                     rtspStopped.set(true)
                 }
 
-                override fun onRtspConnected(sps: ByteArray?, pps: ByteArray?) {
+                override fun onRtspConnected(sdpInfo: RtspClient.SdpInfo) {
                     if (DEBUG) Log.v(TAG, "onRtspConnected()")
                     videoFrameQueue.clear()
+                    val sps : ByteArray? = sdpInfo.sps
+                    val pps : ByteArray? = sdpInfo.pps
                     // Initialize decoder
                     if (sps != null && pps != null) {
                         val data = ByteArray(sps.size + pps.size)
@@ -91,8 +94,8 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                     rtspStopped.set(true)
                 }
 
-                override fun onRtspNalUnitReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
-                    if (DEBUG) Log.v(TAG, "onRtspNalUnitReceived(length=$length, timestamp=$timestamp)")
+                override fun onRtspVideoNalUnitReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
+                    if (DEBUG) Log.v(TAG, "onRtspVideoNalUnitReceived(length=$length, timestamp=$timestamp)")
                     if (DEBUG) {
                         val nals: ArrayList<NalUnit> = ArrayList()
                         val numNals = VideoCodecUtils.getH264NalUnits(data, offset, length - 1, nals)
@@ -113,18 +116,26 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                     videoFrameQueue.push(VideoFrameQueue.VideoFrame(data, offset, length, timestamp))
                 }
 
+                override fun onRtspAudioSampleReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
+                    if (DEBUG) Log.v(TAG, "onRtspAudioSampleReceived(length=$length, timestamp=$timestamp)")
+                }
+
                 override fun onRtspConnecting() {
                     if (DEBUG) Log.v(TAG, "onRtspConnecting()")
                 }
             }
             val uri: Uri = Uri.parse(liveViewModel.rtspRequest.value)
+            val port = if (uri.port == -1) DEFAULT_RTSP_PORT else uri.port
             val username = liveViewModel.rtspUsername.value
             val password = liveViewModel.rtspPassword.value
             try {
-                val socket: Socket = NetUtils.createSocketAndConnect(uri.host.toString(), uri.port, 10000)
+                val socket: Socket = NetUtils.createSocketAndConnect(uri.host.toString(), port, 10000)
 
                 // Blocking call until stopped variable is true or connection failed
-                RtspClient().process(socket, uri.toString(), username, password, rtspStopped, listener)
+                val rtspClient = RtspClient.Builder(socket, uri.toString(), rtspStopped, listener)
+                        .withCredentials(username, password)
+                        .build()
+                rtspClient.execute()
 
                 NetUtils.closeSocket(socket)
             } catch (e: Exception) {

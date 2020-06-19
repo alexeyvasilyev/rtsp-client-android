@@ -49,6 +49,28 @@
                 android:hint="RTSP password"/>
         </com.google.android.material.textfield.TextInputLayout>
 
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:orientation="vertical">
+            <CheckBox
+                android:id="@+id/check_video"
+                android:text="Video"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+            <CheckBox
+                android:id="@+id/check_audio"
+                android:text="Audio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/text_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
         <Button
             android:layout_marginTop="30dp"
             android:id="@+id/button_start_stop_rtsp"

@@ -19,6 +19,7 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 //OPTIONS rtsp://10.0.1.145:88/videoSub RTSP/1.0
@@ -117,19 +118,36 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class RtspClient {
 
     private static final String TAG = RtspClient.class.getSimpleName();
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
+
+    public static class SdpInfo {
+        /**
+         * Session name (RFC 2327). In most cases RTSP server name.
+         */
+        public @Nullable String sessionName;
+
+        /**
+         * Session description (RFC 2327).
+         */
+        public @Nullable String sessionDescription;
+
+        public @Nullable byte[] sps; // Both H.264 and H.265
+        public @Nullable byte[] pps; // Both H.264 and H.265
+        public @Nullable byte[] vps; // H.265 only
+        public @Nullable byte[] sei; // H.265 only
+    }
 
     public interface RtspClientListener {
         void onRtspConnecting();
-        void onRtspConnected(@Nullable byte[] sps, @Nullable byte[] pps);
-        void onRtspNalUnitReceived(@NonNull byte[] data, int offset, int length, long timestamp);
+        void onRtspConnected(@NonNull SdpInfo sdpInfo);
+        void onRtspVideoNalUnitReceived(@NonNull byte[] data, int offset, int length, long timestamp);
+        void onRtspAudioSampleReceived(@NonNull byte[] data, int offset, int length, long timestamp);
         void onRtspDisconnected();
         void onRtspFailedUnauthorized();
         void onRtspFailed(@Nullable String message);
     }
 
     private static final String CRLF = "\r\n";
-    private static final String USER_AGENT = "Lavf58.29.100";
 
     // Size of buffer for reading from the connection
     private final static int MAX_LINE_SIZE = 4098;
@@ -144,27 +162,46 @@ public class RtspClient {
         private static final long serialVersionUID = 1L;
     }
 
-//    private static final int RTP_RCV_PORT = 25000; //port where the client will receive the RTP packets
+    private final @NonNull Socket rtspSocket;
+    private final @NonNull String uriRtsp;
+    private final @NonNull AtomicBoolean exitFlag;
+    private final @NonNull RtspClientListener listener;
 
-    public void process(
-            @NonNull Socket rtspSocket,
-            @NonNull String uriRtsp,
-            @Nullable String username,
-            @Nullable String password,
-            @NonNull AtomicBoolean exitFlag,
-            @NonNull RtspClientListener listener) {
+//  private boolean sendOptionsCommand;
+    private boolean requestVideo;
+    private boolean requestAudio;
+    private @Nullable String username;
+    private @Nullable String password;
+    private @Nullable String userAgent;
+
+    private RtspClient(@NonNull RtspClient.Builder builder) {
+        rtspSocket = builder.rtspSocket;
+        uriRtsp = builder.uriRtsp;
+        exitFlag = builder.exitFlag;
+        listener = builder.listener;
+//      sendOptionsCommand = builder.sendOptionsCommand;
+        requestVideo = builder.requestVideo;
+        requestAudio = builder.requestAudio;
+        username = builder.username;
+        password = builder.password;
+        userAgent = builder.userAgent;
+    }
+
+    public void execute() {
         if (DEBUG)
-            Log.v(TAG, "process(uriRtsp=\"" + uriRtsp + "\", username=\"" + username + "\", password=\"" + password + "\")");
+            Log.v(TAG, "execute()");
         listener.onRtspConnecting();
         try {
             InputStream inputStream = rtspSocket.getInputStream();
             OutputStream outputStream = new BufferedOutputStream(rtspSocket.getOutputStream());
 
-            byte[] sps = null;
-            byte[] pps = null;
+            SdpInfo sdpInfo = new SdpInfo();
             int cSeq = 0;
             ArrayList<Pair<String, String>> headers;
             int status;
+
+            String authToken = null;
+            Pair<String, String> digestRealmNonce = null;
 
 // OPTIONS rtsp://10.0.1.78:8080/video/h264 RTSP/1.0
 // CSeq: 1
@@ -173,13 +210,36 @@ public class RtspClient {
 // RTSP/1.0 200 OK
 // CSeq: 1
 // Public: OPTIONS, DESCRIBE, SETUP, PLAY, GET_PARAMETER, SET_PARAMETER, TEARDOWN
-//            checkExitFlag(exitFlag);
-//            sendOptionsCommand(outputStream, uriRtsp, ++cSeq);
-//            status = readResponseStatusCode(inputStream);
-//            Log.i(TAG, "OPTIONS status: " + status);
-//            checkStatusCode(status);
-//            headers = readResponseHeaders(inputStream);
-//            dumpHeaders(headers);
+//            if (sendOptionsCommand) {
+            checkExitFlag(exitFlag);
+            sendOptionsCommand(outputStream, uriRtsp, ++cSeq, userAgent, authToken);
+            status = readResponseStatusCode(inputStream);
+            headers = readResponseHeaders(inputStream);
+            dumpHeaders(headers);
+            // Try once again with credentials
+            if (status == 401) {
+                digestRealmNonce = getHeaderWwwAuthenticateDigestRealmAndNonce(headers);
+                if (digestRealmNonce == null) {
+                    String basicRealm = getHeaderWwwAuthenticateBasicRealm(headers);
+                    if (TextUtils.isEmpty(basicRealm)) {
+                        throw new IOException("Unknown authentication type");
+                    }
+                    // Basic auth
+                    authToken = getBasicAuthHeader(username, password);
+                } else {
+                    // Digest auth
+                    authToken = getDigestAuthHeader(username, password, "OPTIONS", uriRtsp, digestRealmNonce.first, digestRealmNonce.second);
+                }
+                checkExitFlag(exitFlag);
+                sendOptionsCommand(outputStream, uriRtsp, ++cSeq, userAgent, authToken);
+                status = readResponseStatusCode(inputStream);
+                headers = readResponseHeaders(inputStream);
+                dumpHeaders(headers);
+            }
+            if (DEBUG)
+                Log.i(TAG, "OPTIONS status: " + status);
+            checkStatusCode(status);
+//            }
 
 
 // DESCRIBE rtsp://10.0.1.78:8080/video/h264 RTSP/1.0
@@ -204,19 +264,16 @@ public class RtspClient {
 // a=fmtp:96 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1188
 // a=control:trackID=2
             checkExitFlag(exitFlag);
-            String authToken = null;
-            Pair<String, String> digestRealmNonce = null;
-            String basicRealm;
 
-            sendDescribeCommand(outputStream, uriRtsp, ++cSeq, authToken);
+            sendDescribeCommand(outputStream, uriRtsp, ++cSeq, userAgent, authToken);
             status = readResponseStatusCode(inputStream);
             headers = readResponseHeaders(inputStream);
             dumpHeaders(headers);
-            // Try once again with credentials
+            // Try once again with credentials. OPTIONS command can be accepted without authentication.
             if (status == 401) {
                 digestRealmNonce = getHeaderWwwAuthenticateDigestRealmAndNonce(headers);
                 if (digestRealmNonce == null) {
-                    basicRealm = getHeaderWwwAuthenticateBasicRealm(headers);
+                    String basicRealm = getHeaderWwwAuthenticateBasicRealm(headers);
                     if (TextUtils.isEmpty(basicRealm)) {
                         throw new IOException("Unknown authentication type");
                     }
@@ -227,7 +284,7 @@ public class RtspClient {
                     authToken = getDigestAuthHeader(username, password, "DESCRIBE", uriRtsp, digestRealmNonce.first, digestRealmNonce.second);
                 }
                 checkExitFlag(exitFlag);
-                sendDescribeCommand(outputStream, uriRtsp, ++cSeq, authToken);
+                sendDescribeCommand(outputStream, uriRtsp, ++cSeq, userAgent, authToken);
                 status = readResponseStatusCode(inputStream);
                 headers = readResponseHeaders(inputStream);
                 dumpHeaders(headers);
@@ -255,11 +312,8 @@ public class RtspClient {
                     }
                 }
                 try {
-                    Pair<byte[], byte[]> spsPps = getSpsPpsFromDescribeParams(content);
-                    if (spsPps != null) {
-                        sps = spsPps.first;
-                        pps = spsPps.second;
-                    }
+                    List<Pair<String, String>> params = getDescribeParams(content);
+                    sdpInfo = getSdpInfoFromDescribeParams(params);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -278,7 +332,7 @@ public class RtspClient {
             checkExitFlag(exitFlag);
             if (digestRealmNonce != null)
                 authToken = getDigestAuthHeader(username, password, "SETUP", uriRtspSetup, digestRealmNonce.first, digestRealmNonce.second);
-            sendSetupCommand(outputStream, uriRtspSetup, ++cSeq, authToken);
+            sendSetupCommand(outputStream, uriRtspSetup, ++cSeq, userAgent, authToken);
             status = readResponseStatusCode(inputStream);
             if (DEBUG)
                 Log.i(TAG, "SETUP status: " + status);
@@ -310,7 +364,7 @@ public class RtspClient {
             checkExitFlag(exitFlag);
             if (digestRealmNonce != null)
                 authToken = getDigestAuthHeader(username, password, "PLAY", uriRtspSetup, digestRealmNonce.first, digestRealmNonce.second);
-            sendPlayCommand(outputStream, uriRtsp, ++cSeq, authToken, session);
+            sendPlayCommand(outputStream, uriRtsp, ++cSeq, authToken, userAgent, session);
             status = readResponseStatusCode(inputStream);
             if (DEBUG)
                 Log.i(TAG, "PLAY status: " + status);
@@ -318,13 +372,18 @@ public class RtspClient {
             headers = readResponseHeaders(inputStream);
             dumpHeaders(headers);
 
-            listener.onRtspConnected(sps, pps);
-            readRtpData(inputStream, sps, pps, exitFlag, listener);
+            listener.onRtspConnected(sdpInfo);
+
+            // Blocking call unless exitFlag set to true or thread.interrupt() called.
+            readRtpData(inputStream, sdpInfo.sps, sdpInfo.pps, exitFlag, listener);
 
             listener.onRtspDisconnected();
         } catch (UnauthorizedException e) {
             e.printStackTrace();
             listener.onRtspFailedUnauthorized();
+        } catch (InterruptedException e) {
+            // Thread interrupted. Expected behavior.
+            listener.onRtspDisconnected();
         } catch (Exception e) {
             e.printStackTrace();
             listener.onRtspFailed(e.getMessage());
@@ -383,13 +442,13 @@ public class RtspClient {
                             nalUnitSps = nalUnit;
                             // Looks like there is NAL_IDR_SLICE as well. Send it now.
                             if (nalUnit.length > 100)
-                                listener.onRtspNalUnitReceived(nalUnit, 0, nalUnit.length, (long)(header.timeStamp * 11.111111));
+                                listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, (long)(header.timeStamp * 11.111111));
                             break;
                         case VideoCodecUtils.NAL_PPS:
                             nalUnitPps = nalUnit;
                             // Looks like there is NAL_IDR_SLICE as well. Send it now.
                             if (nalUnit.length > 100)
-                                listener.onRtspNalUnitReceived(nalUnit, 0, nalUnit.length, (long)(header.timeStamp * 11.111111));
+                                listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, (long)(header.timeStamp * 11.111111));
                             break;
                         case VideoCodecUtils.NAL_IDR_SLICE:
                             // Combine IDR with SPS/PPS
@@ -402,7 +461,7 @@ public class RtspClient {
                                 byte[] nalUnitSppPps = new byte[nalUnitSps.length + nalUnitPps.length];
                                 System.arraycopy(nalUnitSps, 0, nalUnitSppPps, 0, nalUnitSps.length);
                                 System.arraycopy(nalUnitPps, 0, nalUnitSppPps, nalUnitSps.length, nalUnitPps.length);
-                                listener.onRtspNalUnitReceived(nalUnitSppPps, 0, nalUnitSppPps.length, (long)(header.timeStamp * 11.111111));
+                                listener.onRtspVideoNalUnitReceived(nalUnitSppPps, 0, nalUnitSppPps.length, (long)(header.timeStamp * 11.111111));
 //                                listener.onRtspNalUnitReceived(nalUnitSppPps, 0, nalUnitSppPps.length, System.currentTimeMillis() / 10);
                                 // Send it only once
                                 nalUnitSps = null;
@@ -413,7 +472,7 @@ public class RtspClient {
 //                            listener.onRtspNalUnitReceived(nalUnit, 0, nalUnit.length, System.currentTimeMillis());
 //                            break;
                         default:
-                            listener.onRtspNalUnitReceived(nalUnit, 0, nalUnit.length, (long)(header.timeStamp * 11.111111));
+                            listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, (long)(header.timeStamp * 11.111111));
 //                            listener.onRtspNalUnitReceived(nalUnit, 0, nalUnit.length, System.currentTimeMillis() / 10);
                     }
                 }
@@ -424,13 +483,21 @@ public class RtspClient {
         }
     }
 
-    private static void sendOptionsCommand(@NonNull OutputStream outputStream, @NonNull String request, int cSeq)
+    private static void sendOptionsCommand(
+            @NonNull OutputStream outputStream,
+            @NonNull String request,
+            int cSeq,
+            @Nullable String userAgent,
+            @Nullable String authToken)
     throws IOException {
         if (DEBUG)
             Log.v(TAG, "sendOptionsCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
         outputStream.write(("OPTIONS " + request + " RTSP/1.0" + CRLF).getBytes());
+        if (authToken != null)
+            outputStream.write(("Authorization: " + authToken + CRLF).getBytes());
         outputStream.write(("CSeq: " + cSeq + CRLF).getBytes());
-        outputStream.write(("User-Agent: " + USER_AGENT + CRLF).getBytes());
+        if (userAgent != null)
+            outputStream.write(("User-Agent: " + userAgent + CRLF).getBytes());
         outputStream.write(CRLF.getBytes());
         outputStream.flush();
     }
@@ -439,6 +506,7 @@ public class RtspClient {
             @NonNull OutputStream outputStream,
             @NonNull String request,
             int cSeq,
+            @Nullable String userAgent,
             @Nullable String authToken)
     throws IOException {
         if (DEBUG)
@@ -448,7 +516,8 @@ public class RtspClient {
         if (authToken != null)
             outputStream.write(("Authorization: " + authToken + CRLF).getBytes());
         outputStream.write(("CSeq: " + cSeq + CRLF).getBytes());
-        outputStream.write(("User-Agent: " + USER_AGENT + CRLF).getBytes());
+        if (userAgent != null)
+            outputStream.write(("User-Agent: " + userAgent + CRLF).getBytes());
         outputStream.write(CRLF.getBytes());
         outputStream.flush();
     }
@@ -457,6 +526,7 @@ public class RtspClient {
             @NonNull OutputStream outputStream,
             @NonNull String request,
             int cSeq,
+            @Nullable String userAgent,
             @Nullable String authToken)
     throws IOException {
         if (DEBUG)
@@ -466,7 +536,8 @@ public class RtspClient {
         if (authToken != null)
             outputStream.write(("Authorization:" + authToken + CRLF).getBytes());
         outputStream.write(("CSeq: " + cSeq + CRLF).getBytes());
-        outputStream.write(("User-Agent: " + USER_AGENT + CRLF).getBytes());
+        if (userAgent != null)
+            outputStream.write(("User-Agent: " + userAgent + CRLF).getBytes());
         outputStream.write(CRLF.getBytes());
         outputStream.flush();
     }
@@ -475,6 +546,7 @@ public class RtspClient {
             @NonNull OutputStream outputStream,
             @NonNull String request,
             int cSeq,
+            @Nullable String userAgent,
             @Nullable String authToken,
             @NonNull String session)
     throws IOException {
@@ -485,7 +557,8 @@ public class RtspClient {
         if (authToken != null)
             outputStream.write(("Authorization:" + authToken + CRLF).getBytes());
         outputStream.write(("CSeq: " + cSeq + CRLF).getBytes());
-        outputStream.write(("User-Agent: " + USER_AGENT + CRLF).getBytes());
+        if (userAgent != null)
+            outputStream.write(("User-Agent: " + userAgent + CRLF).getBytes());
         outputStream.write(("Session: " + session + CRLF).getBytes());
         outputStream.write(CRLF.getBytes());
         outputStream.flush();
@@ -577,16 +650,51 @@ public class RtspClient {
 // a=framesize:96 1080-1920
     }
 
-    @Nullable
-    private static Pair<byte[], byte[]> getSpsPpsFromDescribeParams(@NonNull String text) {
+    // Pair first - name, e.g. "a"; second - value, e.g "cliprect:0,0,1920,1080"
+    @NonNull
+    private static List<Pair<String, String>> getDescribeParams(@NonNull String text) {
+        ArrayList<Pair<String, String>> list = new ArrayList<>();
         String[] params = TextUtils.split(text, "\r\n");
         for (String param : params) {
+            int i = param.indexOf('=');
+            if (i > 0) {
+                String name = param.substring(0, i).trim();
+                String value = param.substring(i + 1);
+                list.add(Pair.create(name, value));
+            }
+        }
+        return list;
+    }
+
+    @NonNull
+    private static SdpInfo getSdpInfoFromDescribeParams(@NonNull List<Pair<String, String>> params) {
+        SdpInfo sdpInfo = new SdpInfo();
+
+        // Parsing "a=fmtp:<format> <format specific parameters>"
+        // a=fmtp:99 sprop-parameter-sets=Z0LgKdoBQBbpuAgIMBA=,aM4ySA==;packetization-mode=1;profile-level-id=42e029
+        Pair<byte[], byte[]> spsPps = getSpsPpsFromDescribeParams(params);
+        if (spsPps != null) {
+            sdpInfo.sps = spsPps.first;
+            sdpInfo.pps = spsPps.second;
+        }
+        for (Pair<String, String> param : params) {
+            switch (param.first) {
+                case "s": sdpInfo.sessionName = param.second; break;
+                case "i": sdpInfo.sessionDescription = param.second; break;
+            }
+        }
+        return sdpInfo;
+    }
+
+    @Nullable
+    private static Pair<byte[], byte[]> getSpsPpsFromDescribeParams(@NonNull List<Pair<String, String>> params) {
+        for (Pair<String, String> param : params) {
             // a=fmtp:96 packetization-mode=1;profile-level-id=42C028;sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==;
             // a=fmtp:96 packetization-mode=1; profile-level-id=4D4029; sprop-parameter-sets=Z01AKZpmBkCb8uAtQEBAQXpw,aO48gA==
             // a=fmtp:99 sprop-parameter-sets=Z0LgKdoBQBbpuAgIMBA=,aM4ySA==;packetization-mode=1;profile-level-id=42e029
-            if (param.startsWith("a=fmtp:9")) { //
-                param = param.substring(10).trim(); // packetization-mode=1;profile-level-id=42C028;sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==;
-                String[] paramsA = TextUtils.split(param, ";");
+            if (param.first.equals("a") && param.second.startsWith("fmtp:9")) { //
+                String value = param.second.substring(8).trim(); // packetization-mode=1;profile-level-id=42C028;sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==;
+                String[] paramsA = TextUtils.split(value, ";");
                 for (String paramA: paramsA) {
                     paramA = paramA.trim();
                     // sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==
@@ -636,6 +744,7 @@ public class RtspClient {
             String h = head.first.toLowerCase();
             // WWW-Authenticate: Digest realm="AXIS_00408CEF081C", nonce="00054cecY7165349339ae05f7017797d6b0aaad38f6ff45", stale=FALSE
             // WWW-Authenticate: Basic realm="AXIS_00408CEF081C"
+            // WWW-Authenticate: Digest realm="Login to 4K049EBPAG1D7E7", nonce="de4ccb15804565dc8a4fa5b115695f4f"
             if ("www-authenticate".equals(h) && head.second.toLowerCase().startsWith("digest")) {
                 String v = head.second.substring(7).trim();
                 int begin, end;
@@ -676,17 +785,18 @@ public class RtspClient {
         return null;
     }
 
-    // Basic
+    // Basic authentication
     @NonNull
     private static String getBasicAuthHeader(@Nullable String username, @Nullable String password) {
         String auth = (username == null ? "" : username) + ":" + (password == null ? "" : password);
         return "Basic " + new String(Base64.encode(auth.getBytes(StandardCharsets.ISO_8859_1), Base64.NO_WRAP));
     }
 
+    // Digest authentication
     @Nullable
-    private String getDigestAuthHeader(
-            @NonNull String username,
-            @NonNull String password,
+    private static String getDigestAuthHeader(
+            @Nullable String username,
+            @Nullable String password,
             @NonNull String method,
             @NonNull String digestUri,
             @NonNull String realm,
@@ -694,6 +804,11 @@ public class RtspClient {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
             byte[] ha1;
+
+            if (username == null)
+                username = "";
+            if (password == null)
+                password = "";
 
             // calc A1 digest
             md.update(username.getBytes(StandardCharsets.ISO_8859_1));
@@ -817,4 +932,66 @@ public class RtspClient {
         return null;
     }
 
+    public static class Builder {
+
+        private static final String DEFAULT_USER_AGENT = "Lavf58.29.100";
+
+        private final @NonNull Socket rtspSocket;
+        private final @NonNull String uriRtsp;
+        private final @NonNull AtomicBoolean exitFlag;
+        private final @NonNull RtspClientListener listener;
+//      private boolean sendOptionsCommand = true;
+        private boolean requestVideo = true;
+        private boolean requestAudio = true;
+        private @Nullable String username = null;
+        private @Nullable String password = null;
+        private @Nullable String userAgent = DEFAULT_USER_AGENT;
+
+        public Builder(
+                @NonNull Socket rtspSocket,
+                @NonNull String uriRtsp,
+                @NonNull AtomicBoolean exitFlag,
+                @NonNull RtspClientListener listener) {
+            this.rtspSocket = rtspSocket;
+            this.uriRtsp = uriRtsp;
+            this.exitFlag = exitFlag;
+            this.listener = listener;
+        }
+
+        @NonNull
+        public Builder withCredentials(@Nullable String username, @Nullable String password) {
+            this.username = username;
+            this.password = password;
+            return this;
+        }
+
+        @NonNull
+        public Builder withUserAgent(@Nullable String userAgent) {
+            this.userAgent = userAgent;
+            return this;
+        }
+
+//        @NonNull
+//        public Builder sendOptionsCommand(boolean sendOptionsCommand) {
+//            this.sendOptionsCommand = sendOptionsCommand;
+//            return this;
+//        }
+
+        @NonNull
+        public Builder requestVideo(boolean requestVideo) {
+            this.requestVideo = requestVideo;
+            return this;
+        }
+
+        @NonNull
+        public Builder requestAudio(boolean requestAudio) {
+            this.requestAudio = requestAudio;
+            return this;
+        }
+
+        @NonNull
+        public RtspClient build() {
+            return new RtspClient(this);
+        }
+    }
 }
