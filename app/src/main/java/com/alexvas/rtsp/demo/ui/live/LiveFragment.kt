@@ -237,7 +237,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
     }
 
     // SurfaceHolder.Callback
-    override fun surfaceChanged(holder: SurfaceHolder?, format: Int, width: Int, height: Int) {
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         if (DEBUG) Log.v(TAG, "surfaceChanged(format=$format, width=$width, height=$height)")
         surface = holder!!.surface
         surfaceWidth = width
@@ -250,14 +250,14 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
     }
 
     // SurfaceHolder.Callback
-    override fun surfaceDestroyed(holder: SurfaceHolder?) {
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
         if (DEBUG) Log.v(TAG, "surfaceDestroyed()")
         decodeThread?.interrupt()
         decodeThread = null
     }
 
     // SurfaceHolder.Callback
-    override fun surfaceCreated(holder: SurfaceHolder?) {
+    override fun surfaceCreated(holder: SurfaceHolder) {
         if (DEBUG) Log.v(TAG, "surfaceCreated()")
     }
 
