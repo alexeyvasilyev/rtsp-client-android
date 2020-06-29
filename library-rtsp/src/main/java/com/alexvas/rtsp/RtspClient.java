@@ -120,6 +120,16 @@ public class RtspClient {
     private static final String TAG = RtspClient.class.getSimpleName();
     private static final boolean DEBUG = true;
 
+    public interface RtspClientListener {
+        void onRtspConnecting();
+        void onRtspConnected(@NonNull SdpInfo sdpInfo);
+        void onRtspVideoNalUnitReceived(@NonNull byte[] data, int offset, int length, long timestamp);
+        void onRtspAudioSampleReceived(@NonNull byte[] data, int offset, int length, long timestamp);
+        void onRtspDisconnected();
+        void onRtspFailedUnauthorized();
+        void onRtspFailed(@Nullable String message);
+    }
+
     public static class SdpInfo {
         /**
          * Session name (RFC 2327). In most cases RTSP server name.
@@ -131,20 +141,24 @@ public class RtspClient {
          */
         public @Nullable String sessionDescription;
 
-        public @Nullable byte[] sps; // Both H.264 and H.265
-        public @Nullable byte[] pps; // Both H.264 and H.265
-        public @Nullable byte[] vps; // H.265 only
-        public @Nullable byte[] sei; // H.265 only
+        public @Nullable ArrayList<Track> tracks;
     }
 
-    public interface RtspClientListener {
-        void onRtspConnecting();
-        void onRtspConnected(@NonNull SdpInfo sdpInfo);
-        void onRtspVideoNalUnitReceived(@NonNull byte[] data, int offset, int length, long timestamp);
-        void onRtspAudioSampleReceived(@NonNull byte[] data, int offset, int length, long timestamp);
-        void onRtspDisconnected();
-        void onRtspFailedUnauthorized();
-        void onRtspFailed(@Nullable String message);
+    public enum MediaType {
+        Video,
+        Audio
+    }
+    public static class Track {
+        public String request;
+        public int payloadType;
+        public @NonNull final MediaType mediaType;
+        public Track(@NonNull MediaType mediaType) {
+            this.mediaType = mediaType;
+        }
+        public @Nullable byte[] sps; // Both H.264 and H.265
+        public @Nullable byte[] pps; // Both H.264 and H.265
+//        public @Nullable byte[] vps; // H.265 only
+//        public @Nullable byte[] sei; // H.265 only
     }
 
     private static final String CRLF = "\r\n";
@@ -298,22 +312,38 @@ public class RtspClient {
                 String content = readContentAsText(inputStream, contentLength);
                 if (DEBUG)
                     Log.i(TAG, "" + content);
-                String videoRequest = getVideoRequestFromDescribeParams(content);
-                if (!TextUtils.isEmpty(videoRequest)) {
-                    if (videoRequest.startsWith("rtsp://")) {
-                        // Absolute URL
-                        uriRtspSetup = videoRequest;
-                    } else {
-                        // Relative URL
-                        if (!videoRequest.startsWith("/")) {
-                            videoRequest = "/" + videoRequest;
-                        }
-                        uriRtspSetup += videoRequest;
-                    }
-                }
+//                String videoRequest = getVideoRequestFromDescribeParams(content);
+//                if (!TextUtils.isEmpty(videoRequest)) {
+//                    if (videoRequest.startsWith("rtsp://")) {
+//                        // Absolute URL
+//                        uriRtspSetup = videoRequest;
+//                    } else {
+//                        // Relative URL
+//                        if (!videoRequest.startsWith("/")) {
+//                            videoRequest = "/" + videoRequest;
+//                        }
+//                        uriRtspSetup += videoRequest;
+//                    }
+//                }
                 try {
                     List<Pair<String, String>> params = getDescribeParams(content);
                     sdpInfo = getSdpInfoFromDescribeParams(params);
+
+                    if (sdpInfo.tracks != null && sdpInfo.tracks.size() > 0) {
+                        Track track = sdpInfo.tracks.get(0); // TODO
+                        if (!TextUtils.isEmpty(track.request)) {
+                            if (track.request.startsWith("rtsp://")) {
+                                // Absolute URL
+                                uriRtspSetup = track.request;
+                            } else {
+                                // Relative URL
+                                if (!track.request.startsWith("/")) {
+                                    track.request = "/" + track.request;
+                                }
+                                uriRtspSetup += track.request;
+                            }
+                        }
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -374,8 +404,12 @@ public class RtspClient {
 
             listener.onRtspConnected(sdpInfo);
 
-            // Blocking call unless exitFlag set to true or thread.interrupt() called.
-            readRtpData(inputStream, sdpInfo.sps, sdpInfo.pps, exitFlag, listener);
+            if (sdpInfo.tracks != null) {
+                // Blocking call unless exitFlag set to true or thread.interrupt() called.
+                readRtpData(inputStream, sdpInfo.tracks, exitFlag, listener);
+            } else {
+                listener.onRtspFailed("No tracks found. RTSP server issue.");
+            }
 
             listener.onRtspDisconnected();
         } catch (UnauthorizedException e) {
@@ -413,8 +447,7 @@ public class RtspClient {
 
     private static void readRtpData(
             @NonNull InputStream inputStream,
-            @Nullable byte[] sps,
-            @Nullable byte[] pps,
+            @NonNull ArrayList<Track> tracks,
             @NonNull AtomicBoolean exitFlag,
             @NonNull RtspClientListener listener)
     throws IOException {
@@ -422,8 +455,18 @@ public class RtspClient {
 
         // Read 1000 RTP packets
         VideoRtpParser parser = new VideoRtpParser();
-        byte[] nalUnitSps = sps;
-        byte[] nalUnitPps = pps;
+
+        byte[] nalUnitSps = null;
+        byte[] nalUnitPps = null;
+        // Search for video track and init SPS/PPS
+        for (Track track: tracks) {
+            if (track.mediaType == MediaType.Video) {
+                nalUnitSps = track.sps;
+                nalUnitPps = track.pps;
+                break;
+            }
+        }
+
         while (!exitFlag.get()) {
 //        for (int i = 0; i < numRtpFrames; i++) {
 //          Log.i(TAG, "RTP packet #" + i);
@@ -608,31 +651,89 @@ public class RtspClient {
         return headers;
     }
 
-    @Nullable
-    private static String getVideoRequestFromDescribeParams(@NonNull String text) {
-        String[] params = TextUtils.split(text, "\r\n");
-        boolean videoFound = false;
-        for (String param: params) {
-            //  a=control:trackID=1
-            if (videoFound && param.startsWith("a=control:")) {
-                return param.substring(10).trim(); // trackID=1
-            // m=video 0 RTP/AVP 96
-            } else if (param.startsWith("m=video")) {
-                videoFound = true;
+    @NonNull
+    private static ArrayList<Track> getTracksFromDescribeParams(@NonNull List<Pair<String, String>> params) {
+        ArrayList<Track> tracks = new ArrayList<>();
+        Track currentTrack = null;
+        for (Pair<String, String> param: params) {
+            switch (param.first) {
+                case "m":
+                    // m=video 0 RTP/AVP 96
+                    if (param.second.startsWith("video")) {
+                        currentTrack = new Track(MediaType.Video);
+                        tracks.add(currentTrack);
+
+                    // m=audio 0 RTP/AVP 97
+                    } else if (param.second.startsWith("audio")) {
+                        currentTrack = new Track(MediaType.Audio);
+                        tracks.add(currentTrack);
+                    } else {
+                        currentTrack = null;
+                    }
+                    if (currentTrack != null) {
+                        // m=<media> <port>/<number of ports> <proto> <fmt> ...
+                        String[] values = TextUtils.split(param.second, " ");
+                        currentTrack.payloadType = (values.length > 3 ? Integer.parseInt(values[3]) : -1);
+                        if (currentTrack.payloadType == -1)
+                            Log.e(TAG, "Failed to get payload type from \"m=" + param.second + "\"");
+                    }
+                    break;
+
+                case "a":
+                    // a=control:trackID=1
+                    if (currentTrack != null) {
+                        if (param.second.startsWith("control:")) {
+                            currentTrack.request = param.second.substring(8);
+                        } else if (param.second.startsWith("fmtp:")) {
+                            Pair<byte[], byte[]> spsPps = getSpsPpsFromDescribeParam(param);
+                            if (spsPps != null) {
+                                currentTrack.sps = spsPps.first;
+                                currentTrack.pps = spsPps.second;
+                            }
+                        }
+                    }
+                    break;
             }
         }
-        return null;
-// v=0
-// t=0 0
-// a=range:npt=now-
-// m=video 0 RTP/AVP 96
-// a=rtpmap:96 H264/90000
-// a=fmtp:96 packetization-mode=1;sprop-parameter-sets=Z0KAH9oBABhpSCgwMDaFCag=,aM4G4g==
-// a=control:trackID=1
-// m=audio 0 RTP/AVP 96
-// a=rtpmap:96 mpeg4-generic/48000/1
-// a=fmtp:96 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1188
-// a=control:trackID=2
+        return tracks;
+    }
+
+//    @Nullable
+//    private static String getVideoRequestFromDescribeParams(@NonNull String text) {
+//        String[] params = TextUtils.split(text, "\r\n");
+//        boolean videoFound = false;
+//        for (String param: params) {
+//            // a=control:trackID=1
+//            if (videoFound && param.startsWith("a=control:")) {
+//                return param.substring(10).trim(); // trackID=1
+//            // m=video 0 RTP/AVP 96
+//            } else if (param.startsWith("m=video")) {
+//                videoFound = true;
+//            }
+//        }
+//        return null;
+//    }
+//v=0
+//o=- 1542237507365806 1542237507365806 IN IP4 10.0.1.111
+//s=Media Presentation
+//e=NONE
+//b=AS:50032
+//t=0 0
+//a=control:*
+//a=range:npt=0.000000-
+//m=video 0 RTP/AVP 96
+//c=IN IP4 0.0.0.0
+//b=AS:50000
+//a=framerate:25.0
+//a=transform:1.000000,0.000000,0.000000;0.000000,1.000000,0.000000;0.000000,0.000000,1.000000
+//a=control:trackID=1
+//a=rtpmap:96 H264/90000
+//a=fmtp:96 packetization-mode=1; profile-level-id=4D4029; sprop-parameter-sets=Z01AKZpmBkCb8uAtQEBAQXpw,aO48gA==
+//m=audio 0 RTP/AVP 97
+//c=IN IP4 0.0.0.0
+//b=AS:32
+//a=control:trackID=2
+//a=rtpmap:97 G726-32/8000
 
 // v=0
 // o=- 14190294250618174561 14190294250618174561 IN IP4 127.0.0.1
@@ -648,7 +749,6 @@ public class RtspClient {
 // a=cliprect:0,0,1920,1080
 // a=framerate:30.0
 // a=framesize:96 1080-1920
-    }
 
     // Pair first - name, e.g. "a"; second - value, e.g "cliprect:0,0,1920,1080"
     @NonNull
@@ -670,13 +770,15 @@ public class RtspClient {
     private static SdpInfo getSdpInfoFromDescribeParams(@NonNull List<Pair<String, String>> params) {
         SdpInfo sdpInfo = new SdpInfo();
 
-        // Parsing "a=fmtp:<format> <format specific parameters>"
-        // a=fmtp:99 sprop-parameter-sets=Z0LgKdoBQBbpuAgIMBA=,aM4ySA==;packetization-mode=1;profile-level-id=42e029
-        Pair<byte[], byte[]> spsPps = getSpsPpsFromDescribeParams(params);
-        if (spsPps != null) {
-            sdpInfo.sps = spsPps.first;
-            sdpInfo.pps = spsPps.second;
-        }
+        sdpInfo.tracks = getTracksFromDescribeParams(params);
+
+//        // Parsing "a=fmtp:<format> <format specific parameters>"
+//        // a=fmtp:99 sprop-parameter-sets=Z0LgKdoBQBbpuAgIMBA=,aM4ySA==;packetization-mode=1;profile-level-id=42e029
+//        Pair<byte[], byte[]> spsPps = getSpsPpsFromDescribeParam(params);
+//        if (spsPps != null) {
+//            sdpInfo.sps = spsPps.first;
+//            sdpInfo.pps = spsPps.second;
+//        }
         for (Pair<String, String> param : params) {
             switch (param.first) {
                 case "s": sdpInfo.sessionName = param.second; break;
@@ -686,43 +788,46 @@ public class RtspClient {
         return sdpInfo;
     }
 
+    /**
+     * @return pair of SPS and PPS
+     */
     @Nullable
-    private static Pair<byte[], byte[]> getSpsPpsFromDescribeParams(@NonNull List<Pair<String, String>> params) {
-        for (Pair<String, String> param : params) {
-            // a=fmtp:96 packetization-mode=1;profile-level-id=42C028;sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==;
-            // a=fmtp:96 packetization-mode=1; profile-level-id=4D4029; sprop-parameter-sets=Z01AKZpmBkCb8uAtQEBAQXpw,aO48gA==
-            // a=fmtp:99 sprop-parameter-sets=Z0LgKdoBQBbpuAgIMBA=,aM4ySA==;packetization-mode=1;profile-level-id=42e029
-            if (param.first.equals("a") && param.second.startsWith("fmtp:9")) { //
-                String value = param.second.substring(8).trim(); // packetization-mode=1;profile-level-id=42C028;sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==;
-                String[] paramsA = TextUtils.split(value, ";");
-                for (String paramA: paramsA) {
-                    paramA = paramA.trim();
-                    // sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==
-                    if (paramA.startsWith("sprop-parameter-sets=")) {
-                        // Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==
-                        paramA = paramA.substring(21);
-                        String[] paramsSpsPps = TextUtils.split(paramA, ",");
-                        if (paramsSpsPps.length > 1) {
-                            byte[] sps = Base64.decode(paramsSpsPps[0], Base64.NO_WRAP);
-                            byte[] pps = Base64.decode(paramsSpsPps[1], Base64.NO_WRAP);
-                            byte[] nalSps = new byte[sps.length + 4];
-                            byte[] nalPps = new byte[pps.length + 4];
-                            // Add 00 00 00 01 NAL unit header
-                            nalSps[0] = 0;
-                            nalSps[1] = 0;
-                            nalSps[2] = 0;
-                            nalSps[3] = 1;
-                            System.arraycopy(sps, 0, nalSps, 4, sps.length);
-                            nalPps[0] = 0;
-                            nalPps[1] = 0;
-                            nalPps[2] = 0;
-                            nalPps[3] = 1;
-                            System.arraycopy(pps, 0, nalPps, 4, pps.length);
-                            return new Pair<>(nalSps, nalPps);
-                        }
+    private static Pair<byte[], byte[]> getSpsPpsFromDescribeParam(@NonNull Pair<String, String> param) {
+        // a=fmtp:96 packetization-mode=1;profile-level-id=42C028;sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==;
+        // a=fmtp:96 packetization-mode=1; profile-level-id=4D4029; sprop-parameter-sets=Z01AKZpmBkCb8uAtQEBAQXpw,aO48gA==
+        // a=fmtp:99 sprop-parameter-sets=Z0LgKdoBQBbpuAgIMBA=,aM4ySA==;packetization-mode=1;profile-level-id=42e029
+        if (param.first.equals("a") && param.second.startsWith("fmtp:9")) { //
+            String value = param.second.substring(8).trim(); // packetization-mode=1;profile-level-id=42C028;sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==;
+            String[] paramsA = TextUtils.split(value, ";");
+            for (String paramA: paramsA) {
+                paramA = paramA.trim();
+                // sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==
+                if (paramA.startsWith("sprop-parameter-sets=")) {
+                    // Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==
+                    paramA = paramA.substring(21);
+                    String[] paramsSpsPps = TextUtils.split(paramA, ",");
+                    if (paramsSpsPps.length > 1) {
+                        byte[] sps = Base64.decode(paramsSpsPps[0], Base64.NO_WRAP);
+                        byte[] pps = Base64.decode(paramsSpsPps[1], Base64.NO_WRAP);
+                        byte[] nalSps = new byte[sps.length + 4];
+                        byte[] nalPps = new byte[pps.length + 4];
+                        // Add 00 00 00 01 NAL unit header
+                        nalSps[0] = 0;
+                        nalSps[1] = 0;
+                        nalSps[2] = 0;
+                        nalSps[3] = 1;
+                        System.arraycopy(sps, 0, nalSps, 4, sps.length);
+                        nalPps[0] = 0;
+                        nalPps[1] = 0;
+                        nalPps[2] = 0;
+                        nalPps[3] = 1;
+                        System.arraycopy(pps, 0, nalPps, 4, pps.length);
+                        return new Pair<>(nalSps, nalPps);
                     }
                 }
             }
+        } else {
+            Log.e(TAG, "Not a valid fmtp");
         }
         return null;
     }

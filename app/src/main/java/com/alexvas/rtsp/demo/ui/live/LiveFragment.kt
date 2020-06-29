@@ -78,8 +78,15 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                 override fun onRtspConnected(sdpInfo: RtspClient.SdpInfo) {
                     if (DEBUG) Log.v(TAG, "onRtspConnected()")
                     videoFrameQueue.clear()
-                    val sps : ByteArray? = sdpInfo.sps
-                    val pps : ByteArray? = sdpInfo.pps
+                    var videoTrack : RtspClient.Track? = null
+                    for (track in sdpInfo.tracks!!) {
+                        if (track.mediaType == RtspClient.MediaType.Video) {
+                            videoTrack = track
+                            break
+                        }
+                    }
+                    val sps : ByteArray? = videoTrack?.sps
+                    val pps : ByteArray? = videoTrack?.pps
                     // Initialize decoder
                     if (sps != null && pps != null) {
                         val data = ByteArray(sps.size + pps.size)
