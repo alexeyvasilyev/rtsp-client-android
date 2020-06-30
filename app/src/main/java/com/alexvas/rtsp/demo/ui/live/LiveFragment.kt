@@ -12,6 +12,7 @@ import android.text.TextWatcher
 import android.util.Log
 import android.view.*
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
@@ -44,6 +45,8 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
     private var surface: Surface? = null
     private var surfaceWidth: Int = 1920
     private var surfaceHeight: Int = 1080
+    private var checkVideo: CheckBox? = null
+    private var checkAudio: CheckBox? = null
 
     fun onRtspClientStarted() {
         if (DEBUG) Log.d(TAG, "onRtspClientStarted()")
@@ -78,15 +81,8 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                 override fun onRtspConnected(sdpInfo: RtspClient.SdpInfo) {
                     if (DEBUG) Log.v(TAG, "onRtspConnected()")
                     videoFrameQueue.clear()
-                    var videoTrack : RtspClient.Track? = null
-                    for (track in sdpInfo.tracks!!) {
-                        if (track.mediaType == RtspClient.MediaType.Video) {
-                            videoTrack = track
-                            break
-                        }
-                    }
-                    val sps : ByteArray? = videoTrack?.sps
-                    val pps : ByteArray? = videoTrack?.pps
+                    val sps : ByteArray? = sdpInfo.videoTrack?.sps
+                    val pps : ByteArray? = sdpInfo.videoTrack?.pps
                     // Initialize decoder
                     if (sps != null && pps != null) {
                         val data = ByteArray(sps.size + pps.size)
@@ -140,6 +136,8 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
 
                 // Blocking call until stopped variable is true or connection failed
                 val rtspClient = RtspClient.Builder(socket, uri.toString(), rtspStopped, listener)
+                        .requestVideo(checkVideo!!.isChecked)
+                        .requestAudio(checkAudio!!.isChecked)
                         .withCredentials(username, password)
                         .build()
                 rtspClient.execute()
@@ -160,11 +158,14 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
         liveViewModel =
                 ViewModelProvider(this).get(LiveViewModel::class.java)
         val root = inflater.inflate(R.layout.fragment_live, container, false)
-//        val textView: TextView = root.findViewById(R.id.text_live)
+//      val textView: TextView = root.findViewById(R.id.text_live)
         val textRtspRequest: EditText = root.findViewById(R.id.edit_rtsp_request)
         val textRtspUsername: EditText = root.findViewById(R.id.edit_rtsp_username)
         val textRtspPassword: EditText = root.findViewById(R.id.edit_rtsp_password)
         val surfaceView: SurfaceView = root.findViewById(R.id.surfaceView)
+        checkVideo = root.findViewById(R.id.check_video)
+        checkAudio = root.findViewById(R.id.check_audio)
+
         surfaceView.holder.addCallback(this)
         surface = surfaceView.holder.surface
 
@@ -224,6 +225,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                 rtspThread = RtspThread()
                 rtspThread?.start()
             } else {
+                rtspStopped.set(true)
                 rtspThread?.interrupt()
             }
         }
@@ -246,7 +248,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
     // SurfaceHolder.Callback
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         if (DEBUG) Log.v(TAG, "surfaceChanged(format=$format, width=$width, height=$height)")
-        surface = holder!!.surface
+        surface = holder.surface
         surfaceWidth = width
         surfaceHeight = height
         if (decodeThread != null) {

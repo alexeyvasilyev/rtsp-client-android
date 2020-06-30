@@ -118,7 +118,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class RtspClient {
 
     private static final String TAG = RtspClient.class.getSimpleName();
-    private static final boolean DEBUG = true;
+    private static final boolean DEBUG = false;
 
     public interface RtspClientListener {
         void onRtspConnecting();
@@ -141,24 +141,32 @@ public class RtspClient {
          */
         public @Nullable String sessionDescription;
 
-        public @Nullable ArrayList<Track> tracks;
+        public @Nullable VideoTrack videoTrack;
+        public @Nullable AudioTrack audioTrack;
     }
 
-    public enum MediaType {
-        Video,
-        Audio
-    }
-    public static class Track {
+    public abstract static class Track {
         public String request;
         public int payloadType;
-        public @NonNull final MediaType mediaType;
-        public Track(@NonNull MediaType mediaType) {
-            this.mediaType = mediaType;
-        }
+    }
+
+    public static final int VIDEO_CODEC_H264 = 0;
+    public static final int VIDEO_CODEC_H265 = 1;
+
+    public static class VideoTrack extends Track {
+        public int videoCodec = VIDEO_CODEC_H264;
         public @Nullable byte[] sps; // Both H.264 and H.265
         public @Nullable byte[] pps; // Both H.264 and H.265
-//        public @Nullable byte[] vps; // H.265 only
-//        public @Nullable byte[] sei; // H.265 only
+//      public @Nullable byte[] vps; // H.265 only
+//      public @Nullable byte[] sei; // H.265 only
+    }
+
+    public static final int AUDIO_CODEC_AAC = 0;
+
+    public static class AudioTrack extends Track {
+        public int audioCodec = AUDIO_CODEC_AAC;
+        public int sampleRateHz; // 16000, 8000
+        public int channels; // 1 - mono, 2 - stereo
     }
 
     private static final String CRLF = "\r\n";
@@ -253,7 +261,6 @@ public class RtspClient {
             if (DEBUG)
                 Log.i(TAG, "OPTIONS status: " + status);
             checkStatusCode(status);
-//            }
 
 
 // DESCRIBE rtsp://10.0.1.78:8080/video/h264 RTSP/1.0
@@ -307,43 +314,13 @@ public class RtspClient {
                 Log.i(TAG, "DESCRIBE status: " + status);
             checkStatusCode(status);
             int contentLength = getHeaderContentLength(headers);
-            String uriRtspSetup = uriRtsp;
             if (contentLength > 0) {
                 String content = readContentAsText(inputStream, contentLength);
                 if (DEBUG)
                     Log.i(TAG, "" + content);
-//                String videoRequest = getVideoRequestFromDescribeParams(content);
-//                if (!TextUtils.isEmpty(videoRequest)) {
-//                    if (videoRequest.startsWith("rtsp://")) {
-//                        // Absolute URL
-//                        uriRtspSetup = videoRequest;
-//                    } else {
-//                        // Relative URL
-//                        if (!videoRequest.startsWith("/")) {
-//                            videoRequest = "/" + videoRequest;
-//                        }
-//                        uriRtspSetup += videoRequest;
-//                    }
-//                }
                 try {
                     List<Pair<String, String>> params = getDescribeParams(content);
                     sdpInfo = getSdpInfoFromDescribeParams(params);
-
-                    if (sdpInfo.tracks != null && sdpInfo.tracks.size() > 0) {
-                        Track track = sdpInfo.tracks.get(0); // TODO
-                        if (!TextUtils.isEmpty(track.request)) {
-                            if (track.request.startsWith("rtsp://")) {
-                                // Absolute URL
-                                uriRtspSetup = track.request;
-                            } else {
-                                // Relative URL
-                                if (!track.request.startsWith("/")) {
-                                    track.request = "/" + track.request;
-                                }
-                                uriRtspSetup += track.request;
-                            }
-                        }
-                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -359,27 +336,43 @@ public class RtspClient {
 // CSeq: 3
 // Transport: RTP/AVP/TCP;unicast;interleaved=0-1
 // Session: Mzk5MzY2MzUwMTg3NTc2Mzc5NQ;timeout=30
-            checkExitFlag(exitFlag);
-            if (digestRealmNonce != null)
-                authToken = getDigestAuthHeader(username, password, "SETUP", uriRtspSetup, digestRealmNonce.first, digestRealmNonce.second);
-            sendSetupCommand(outputStream, uriRtspSetup, ++cSeq, userAgent, authToken);
-            status = readResponseStatusCode(inputStream);
-            if (DEBUG)
-                Log.i(TAG, "SETUP status: " + status);
-            checkStatusCode(status);
-            headers = readResponseHeaders(inputStream);
-            dumpHeaders(headers);
-            String session = getHeader(headers, "Session");
-            if (!TextUtils.isEmpty(session)) {
-                // ODgyODg3MjQ1MDczODk3NDk4Nw;timeout=30
-                String[] params = TextUtils.split(session, ";");
-                session = params[0];
+            String session = null;
+            for (int i = 0; i < 2; i++) {
+                // i=0 - video track, i=1 - audio track
+                checkExitFlag(exitFlag);
+                Track track = (i == 0 ?
+                        (requestVideo ? sdpInfo.videoTrack : null) :
+                        (requestAudio ? sdpInfo.audioTrack : null));
+                if (track != null) {
+                    String uriRtspSetup = getUriForSetup(uriRtsp, track);
+                    if (uriRtspSetup == null) {
+                        Log.e(TAG, "Failed to get RTSP URI for SETUP");
+                        continue;
+                    }
+                    if (digestRealmNonce != null)
+                        authToken = getDigestAuthHeader(username, password, "SETUP", uriRtspSetup, digestRealmNonce.first, digestRealmNonce.second);
+                    sendSetupCommand(outputStream, uriRtspSetup, ++cSeq, userAgent, authToken, session, (i == 0 ? "0-1" /*video*/ : "2-3" /*audio*/));
+                    status = readResponseStatusCode(inputStream);
+                    if (DEBUG)
+                        Log.i(TAG, "SETUP status: " + status);
+                    checkStatusCode(status);
+                    headers = readResponseHeaders(inputStream);
+                    dumpHeaders(headers);
+                    session = getHeader(headers, "Session");
+                    if (!TextUtils.isEmpty(session)) {
+                        // ODgyODg3MjQ1MDczODk3NDk4Nw;timeout=30
+                        String[] params = TextUtils.split(session, ";");
+                        session = params[0];
+                    }
+                    if (DEBUG)
+                        Log.d(TAG, "SETUP session: " + session);
+                    if (TextUtils.isEmpty(session))
+                        throw new IOException("Failed to get RTSP session");
+                }
             }
-            if (DEBUG)
-                Log.d(TAG, "SETUP session: " + session);
-            if (TextUtils.isEmpty(session))
-                throw new IOException("Failed to get RTSP session");
 
+            if (TextUtils.isEmpty(session))
+                throw new IOException("Failed to get any media track");
 
 // PLAY rtsp://10.0.1.78:8080/video/h264 RTSP/1.0
 // Range: npt=0.000-
@@ -393,8 +386,9 @@ public class RtspClient {
 // Session: Mzk5MzY2MzUwMTg3NTc2Mzc5NQ;timeout=30
             checkExitFlag(exitFlag);
             if (digestRealmNonce != null)
-                authToken = getDigestAuthHeader(username, password, "PLAY", uriRtspSetup, digestRealmNonce.first, digestRealmNonce.second);
-            sendPlayCommand(outputStream, uriRtsp, ++cSeq, authToken, userAgent, session);
+                authToken = getDigestAuthHeader(username, password, "PLAY", uriRtsp /*?*/, digestRealmNonce.first, digestRealmNonce.second);
+            //noinspection ConstantConditions
+            sendPlayCommand(outputStream, uriRtsp, ++cSeq, userAgent, authToken, session);
             status = readResponseStatusCode(inputStream);
             if (DEBUG)
                 Log.i(TAG, "PLAY status: " + status);
@@ -404,9 +398,9 @@ public class RtspClient {
 
             listener.onRtspConnected(sdpInfo);
 
-            if (sdpInfo.tracks != null) {
+            if (sdpInfo.videoTrack != null) {
                 // Blocking call unless exitFlag set to true or thread.interrupt() called.
-                readRtpData(inputStream, sdpInfo.tracks, exitFlag, listener);
+                readRtpData(inputStream, sdpInfo, exitFlag, listener);
             } else {
                 listener.onRtspFailed("No tracks found. RTSP server issue.");
             }
@@ -429,6 +423,25 @@ public class RtspClient {
         }
     }
 
+    @Nullable
+    private static String getUriForSetup(@NonNull String uriRtsp, @Nullable Track track) {
+        if (track == null || TextUtils.isEmpty(track.request))
+            return null;
+
+        String uriRtspSetup = uriRtsp;
+        if (track.request.startsWith("rtsp://") || track.request.startsWith("rtsps://")) {
+            // Absolute URL
+            uriRtspSetup = track.request;
+        } else {
+            // Relative URL
+            if (!track.request.startsWith("/")) {
+                track.request = "/" + track.request;
+            }
+            uriRtspSetup += track.request;
+        }
+        return uriRtspSetup;
+    }
+
     private static void checkExitFlag(@NonNull AtomicBoolean exitFlag) throws InterruptedException {
         if (exitFlag.get())
             throw new InterruptedException();
@@ -447,7 +460,7 @@ public class RtspClient {
 
     private static void readRtpData(
             @NonNull InputStream inputStream,
-            @NonNull ArrayList<Track> tracks,
+            @NonNull SdpInfo sdpInfo,
             @NonNull AtomicBoolean exitFlag,
             @NonNull RtspClientListener listener)
     throws IOException {
@@ -456,16 +469,8 @@ public class RtspClient {
         // Read 1000 RTP packets
         VideoRtpParser parser = new VideoRtpParser();
 
-        byte[] nalUnitSps = null;
-        byte[] nalUnitPps = null;
-        // Search for video track and init SPS/PPS
-        for (Track track: tracks) {
-            if (track.mediaType == MediaType.Video) {
-                nalUnitSps = track.sps;
-                nalUnitPps = track.pps;
-                break;
-            }
-        }
+        byte[] nalUnitSps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.sps : null);
+        byte[] nalUnitPps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.pps : null);
 
         while (!exitFlag.get()) {
 //        for (int i = 0; i < numRtpFrames; i++) {
@@ -475,7 +480,10 @@ public class RtspClient {
                 return;
 //          header.dumpHeader();
             NetUtils.readData(inputStream, data, 0, header.payloadSize);
-            if (header.payloadType >= 96 && header.payloadType <= 99) {
+
+            // Video
+            if (sdpInfo.videoTrack != null && header.payloadType == sdpInfo.videoTrack.payloadType) {
+//            if (header.payloadType >= 96 && header.payloadType <= 99) {
                 byte[] nalUnit = parser.processRtpPacketAndGetNalUnit(data, header.payloadSize);
                 if (nalUnit != null) {
                     int type = VideoCodecUtils.getH264NalUnitType(nalUnit, 0, nalUnit.length);
@@ -519,6 +527,12 @@ public class RtspClient {
 //                            listener.onRtspNalUnitReceived(nalUnit, 0, nalUnit.length, System.currentTimeMillis() / 10);
                     }
                 }
+
+            // Audio
+            } else if (sdpInfo.audioTrack != null && header.payloadType == sdpInfo.audioTrack.payloadType) {
+                listener.onRtspAudioSampleReceived(data, 0, header.payloadSize, (long)(header.timeStamp * 11.111111));
+
+            // Unknown
             } else {
                 if (DEBUG)
                     Log.w(TAG, "Invalid RTP payload type " + header.payloadType);
@@ -570,17 +584,21 @@ public class RtspClient {
             @NonNull String request,
             int cSeq,
             @Nullable String userAgent,
-            @Nullable String authToken)
+            @Nullable String authToken,
+            @Nullable String session,
+            @NonNull String interleaved)
     throws IOException {
         if (DEBUG)
             Log.v(TAG, "sendSetupCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
         outputStream.write(("SETUP " + request + " RTSP/1.0" + CRLF).getBytes());
-        outputStream.write(("Transport: RTP/AVP/TCP;unicast;interleaved=0-1" + CRLF).getBytes());
+        outputStream.write(("Transport: RTP/AVP/TCP;unicast;interleaved=" + interleaved + CRLF).getBytes());
         if (authToken != null)
-            outputStream.write(("Authorization:" + authToken + CRLF).getBytes());
+            outputStream.write(("Authorization: " + authToken + CRLF).getBytes());
         outputStream.write(("CSeq: " + cSeq + CRLF).getBytes());
         if (userAgent != null)
             outputStream.write(("User-Agent: " + userAgent + CRLF).getBytes());
+        if (session != null)
+            outputStream.write(("Session: " + session + CRLF).getBytes());
         outputStream.write(CRLF.getBytes());
         outputStream.flush();
     }
@@ -598,7 +616,7 @@ public class RtspClient {
         outputStream.write(("PLAY " + request + " RTSP/1.0" + CRLF).getBytes());
         outputStream.write(("Range: npt=0.000-" + CRLF).getBytes());
         if (authToken != null)
-            outputStream.write(("Authorization:" + authToken + CRLF).getBytes());
+            outputStream.write(("Authorization: " + authToken + CRLF).getBytes());
         outputStream.write(("CSeq: " + cSeq + CRLF).getBytes());
         if (userAgent != null)
             outputStream.write(("User-Agent: " + userAgent + CRLF).getBytes());
@@ -612,6 +630,7 @@ public class RtspClient {
         if (DEBUG)
             Log.d(TAG, "" + line);
         if (!TextUtils.isEmpty(line)) {
+            //noinspection ConstantConditions
             int indexRtsp = line.indexOf("RTSP/1.0 "); // 9 characters
             if (indexRtsp >= 0) {
                 int indexCode = line.indexOf(' ', indexRtsp + 9);
@@ -636,7 +655,7 @@ public class RtspClient {
             if (!TextUtils.isEmpty(line)) {
 //                if (DEBUG)
 //                    Log.d(TAG, "" + line);
-                if (line.equals(CRLF)) {
+                if (CRLF.equals(line)) {
                     return headers;
                 } else {
                     String[] pairs = TextUtils.split(line, ":");
@@ -651,22 +670,27 @@ public class RtspClient {
         return headers;
     }
 
+    /**
+     * Get a list of tracks from SDP. Usually contains video and audio track only.
+     * @return array of 2 tracks. First is video track, second audio track.
+     */
     @NonNull
-    private static ArrayList<Track> getTracksFromDescribeParams(@NonNull List<Pair<String, String>> params) {
-        ArrayList<Track> tracks = new ArrayList<>();
+    private static Track[] getTracksFromDescribeParams(@NonNull List<Pair<String, String>> params) {
+        Track[] tracks = new Track[2];
         Track currentTrack = null;
         for (Pair<String, String> param: params) {
             switch (param.first) {
                 case "m":
                     // m=video 0 RTP/AVP 96
                     if (param.second.startsWith("video")) {
-                        currentTrack = new Track(MediaType.Video);
-                        tracks.add(currentTrack);
+                        currentTrack = new VideoTrack();
+                        tracks[0] = currentTrack;
 
                     // m=audio 0 RTP/AVP 97
                     } else if (param.second.startsWith("audio")) {
-                        currentTrack = new Track(MediaType.Audio);
-                        tracks.add(currentTrack);
+                        currentTrack = new AudioTrack();
+                        tracks[1] = currentTrack;
+
                     } else {
                         currentTrack = null;
                     }
@@ -684,11 +708,59 @@ public class RtspClient {
                     if (currentTrack != null) {
                         if (param.second.startsWith("control:")) {
                             currentTrack.request = param.second.substring(8);
+
+                        // a=fmtp:96 packetization-mode=1; profile-level-id=4D4029; sprop-parameter-sets=Z01AKZpmBkCb8uAtQEBAQXpw,aO48gA==
+                        // a=fmtp:97 streamtype=5; profile-level-id=15; mode=AAC-hbr; config=1408; sizeLength=13; indexLength=3; indexDeltaLength=3; profile=1; bitrate=32000;
                         } else if (param.second.startsWith("fmtp:")) {
-                            Pair<byte[], byte[]> spsPps = getSpsPpsFromDescribeParam(param);
-                            if (spsPps != null) {
-                                currentTrack.sps = spsPps.first;
-                                currentTrack.pps = spsPps.second;
+                            // Video
+                            if (currentTrack instanceof VideoTrack) {
+                                Pair<byte[], byte[]> spsPps = getSpsPpsFromDescribeParam(param);
+                                if (spsPps != null) {
+                                    ((VideoTrack) tracks[0]).sps = spsPps.first;
+                                    ((VideoTrack) tracks[0]).pps = spsPps.second;
+                                }
+                            // Audio
+                            } else {
+
+                            }
+
+                        // a=rtpmap:96 H264/90000
+                        // a=rtpmap:97 mpeg4-generic/16000/1
+                        // a=rtpmap:97 G726-32/8000
+                        } else if (param.second.startsWith("rtpmap:")) {
+                            // Video
+                            if (currentTrack instanceof VideoTrack) {
+                                String[] values = TextUtils.split(param.second, " ");
+                                if (values.length > 1) {
+                                    values = TextUtils.split(values[1], "/");
+                                    if (values.length > 0) {
+                                        switch (values[0]) {
+                                            case "H264": ((VideoTrack) tracks[0]).videoCodec = VIDEO_CODEC_H264; break;
+                                            case "H265": ((VideoTrack) tracks[0]).videoCodec = VIDEO_CODEC_H265; break;
+                                            default:
+                                                Log.w(TAG, "Unknown video codec \"" + values[0] + "\"");
+                                        }
+                                        Log.i(TAG, "Video: " + values[0]);
+                                    }
+                                }
+                            // Audio
+                            } else {
+                                String[] values = TextUtils.split(param.second, " ");
+                                if (values.length > 1) {
+                                    AudioTrack track = ((AudioTrack) tracks[1]);
+                                    values = TextUtils.split(values[1], "/");
+                                    if (values.length > 2) {
+                                        if ("mpeg4-generic".equals(values[0])) {
+                                            track.audioCodec = AUDIO_CODEC_AAC;
+                                        } else {
+                                            Log.w(TAG, "Unknown audio codec \"" + values[0] + "\"");
+                                        }
+                                        track.sampleRateHz = Integer.parseInt(values[1]);
+                                        track.channels = Integer.parseInt(values[2]);
+                                        Log.i(TAG, "Audio: " + (track.audioCodec == AUDIO_CODEC_AAC ? "AAC" : "n/a") + ", sample rate: " + track.sampleRateHz + ", channels: " + track.channels);
+                                    }
+                                }
+
                             }
                         }
                     }
@@ -698,21 +770,6 @@ public class RtspClient {
         return tracks;
     }
 
-//    @Nullable
-//    private static String getVideoRequestFromDescribeParams(@NonNull String text) {
-//        String[] params = TextUtils.split(text, "\r\n");
-//        boolean videoFound = false;
-//        for (String param: params) {
-//            // a=control:trackID=1
-//            if (videoFound && param.startsWith("a=control:")) {
-//                return param.substring(10).trim(); // trackID=1
-//            // m=video 0 RTP/AVP 96
-//            } else if (param.startsWith("m=video")) {
-//                videoFound = true;
-//            }
-//        }
-//        return null;
-//    }
 //v=0
 //o=- 1542237507365806 1542237507365806 IN IP4 10.0.1.111
 //s=Media Presentation
@@ -770,7 +827,9 @@ public class RtspClient {
     private static SdpInfo getSdpInfoFromDescribeParams(@NonNull List<Pair<String, String>> params) {
         SdpInfo sdpInfo = new SdpInfo();
 
-        sdpInfo.tracks = getTracksFromDescribeParams(params);
+        Track[] tracks = getTracksFromDescribeParams(params);
+        sdpInfo.videoTrack = ((VideoTrack)tracks[0]);
+        sdpInfo.audioTrack = ((AudioTrack)tracks[1]);
 
 //        // Parsing "a=fmtp:<format> <format specific parameters>"
 //        // a=fmtp:99 sprop-parameter-sets=Z0LgKdoBQBbpuAgIMBA=,aM4ySA==;packetization-mode=1;profile-level-id=42e029
@@ -836,6 +895,7 @@ public class RtspClient {
         String length = getHeader(headers, "content-length");
         if (!TextUtils.isEmpty(length)) {
             try {
+                //noinspection ConstantConditions
                 return Integer.parseInt(length);
             } catch (NumberFormatException ignored) {
             }
