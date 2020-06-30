@@ -18,7 +18,7 @@ allprojects {
   }
 }
 dependencies {
-  implementation 'com.github.alexeyvasilyev:rtsp-client-android:1.0.1'
+  implementation 'com.github.alexeyvasilyev:rtsp-client-android:1.1.0'
 }
 ```
 
@@ -30,12 +30,17 @@ RtspClient.RtspClientListener rtspClientListener = new RtspClient.RtspClientList
     }
 
     @Override
-    public void onRtspConnected(@Nullable byte[] sps, @Nullable byte[] pps) {
+    public void onRtspConnected(@NonNull RtspClient.SdpInfo sdpInfo) {
     }
 
     @Override
-    public void onRtspNalUnitReceived(@NonNull byte[] data, int offset, int length, long timestamp) {
+    public void onRtspVideoNalUnitReceived(@NonNull byte[] data, int offset, int length, long timestamp) {
         // Send raw H264/H265 NAL unit to decoder
+    }
+
+    @Override
+    public void onRtspAudioSampleReceived(@NonNull byte[] data, int offset, int length, long timestamp) {
+        // Send raw audio to decoder
     }
 
     @Override
@@ -52,15 +57,20 @@ RtspClient.RtspClientListener rtspClientListener = new RtspClient.RtspClientList
         Log.e(TAG, "RTSP failed with message \"" + message + "\"");
     }
 };
-    
+
 Uri uri = Uri.parse("rtsps://10.0.1.3/test.sdp");
 String username = "admin";
 String password = "secret";
 AtomicBoolean stopped = new AtomicBoolean(false);
 SSLSocket sslSocket = NetUtils.createSslSocketAndConnect(uri.getHost(), uri.getPort(), 10000);
 
+RtspClient rtspClient = new RtspClient.Builder(socket, uri.toString(), stopped, rtspClientListener)
+    .requestVideo(true)
+    .requestAudio(true)
+    .withCredentials(username, password)
+    .build();
 // Blocking call until stopped variable is true or connection failed
-new RtspClient().process(sslSocket, streamUrl, username, password, stopped, rtspClientListener);
+rtspClient.execute();
 
 NetUtils.closeSocket(sslSocket);
 ```
