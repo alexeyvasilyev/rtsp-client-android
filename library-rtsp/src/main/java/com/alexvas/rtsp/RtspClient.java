@@ -534,7 +534,8 @@ public class RtspClient {
 
             // Unknown
             } else {
-                if (DEBUG)
+                // https://www.iana.org/assignments/rtp-parameters/rtp-parameters.xhtml
+                if (DEBUG && header.payloadType >= 96 && header.payloadType <= 127)
                     Log.w(TAG, "Invalid RTP payload type " + header.payloadType);
             }
         }
@@ -711,6 +712,7 @@ public class RtspClient {
 
                         // a=fmtp:96 packetization-mode=1; profile-level-id=4D4029; sprop-parameter-sets=Z01AKZpmBkCb8uAtQEBAQXpw,aO48gA==
                         // a=fmtp:97 streamtype=5; profile-level-id=15; mode=AAC-hbr; config=1408; sizeLength=13; indexLength=3; indexDeltaLength=3; profile=1; bitrate=32000;
+                        // a=fmtp:97 streamtype=5;profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1408
                         } else if (param.second.startsWith("fmtp:")) {
                             // Video
                             if (currentTrack instanceof VideoTrack) {
@@ -734,9 +736,9 @@ public class RtspClient {
                                 if (values.length > 1) {
                                     values = TextUtils.split(values[1], "/");
                                     if (values.length > 0) {
-                                        switch (values[0]) {
-                                            case "H264": ((VideoTrack) tracks[0]).videoCodec = VIDEO_CODEC_H264; break;
-                                            case "H265": ((VideoTrack) tracks[0]).videoCodec = VIDEO_CODEC_H265; break;
+                                        switch (values[0].toLowerCase()) {
+                                            case "h264": ((VideoTrack) tracks[0]).videoCodec = VIDEO_CODEC_H264; break;
+                                            case "h265": ((VideoTrack) tracks[0]).videoCodec = VIDEO_CODEC_H265; break;
                                             default:
                                                 Log.w(TAG, "Unknown video codec \"" + values[0] + "\"");
                                         }
@@ -750,14 +752,14 @@ public class RtspClient {
                                     AudioTrack track = ((AudioTrack) tracks[1]);
                                     values = TextUtils.split(values[1], "/");
                                     if (values.length > 2) {
-                                        if ("mpeg4-generic".equals(values[0])) {
+                                        if ("mpeg4-generic".equals(values[0].toLowerCase())) {
                                             track.audioCodec = AUDIO_CODEC_AAC;
                                         } else {
                                             Log.w(TAG, "Unknown audio codec \"" + values[0] + "\"");
                                         }
                                         track.sampleRateHz = Integer.parseInt(values[1]);
                                         track.channels = Integer.parseInt(values[2]);
-                                        Log.i(TAG, "Audio: " + (track.audioCodec == AUDIO_CODEC_AAC ? "AAC" : "n/a") + ", sample rate: " + track.sampleRateHz + ", channels: " + track.channels);
+                                        Log.i(TAG, "Audio: " + (track.audioCodec == AUDIO_CODEC_AAC ? "AAC LC" : "n/a") + ", sample rate: " + track.sampleRateHz + " Hz, channels: " + track.channels);
                                     }
                                 }
 

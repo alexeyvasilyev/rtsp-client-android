@@ -29,17 +29,16 @@ import java.util.concurrent.BlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
+private const val DEFAULT_RTSP_PORT = 554
+private val TAG: String = LiveFragment::class.java.simpleName
+private const val DEBUG = true
 
 class LiveFragment : Fragment(), SurfaceHolder.Callback {
-
-    private val DEFAULT_RTSP_PORT = 554
-    private val TAG: String = LiveFragment::class.java.simpleName
-    private val DEBUG = true
 
     private lateinit var liveViewModel: LiveViewModel
     private var videoFrameQueue: VideoFrameQueue = VideoFrameQueue()
     private var rtspThread: RtspThread? = null
-    private var decodeThread: DecodeThread? = null
+    private var decodeThread: VideoDecodeThread? = null
     private var rtspStopped: AtomicBoolean = AtomicBoolean(true)
     private var btnStartStop: Button? = null
     private var surface: Surface? = null
@@ -47,21 +46,30 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
     private var surfaceHeight: Int = 1080
     private var checkVideo: CheckBox? = null
     private var checkAudio: CheckBox? = null
+    private var videoMimeType: String = ""
+    private var audioMimeType: String = ""
 
     fun onRtspClientStarted() {
-        if (DEBUG) Log.d(TAG, "onRtspClientStarted()")
+        if (DEBUG) Log.v(TAG, "onRtspClientStarted()")
         rtspStopped.set(false)
         btnStartStop?.text = "Stop RTSP"
-        decodeThread = DecodeThread(surface!!, "video/avc", surfaceWidth, surfaceHeight, videoFrameQueue)
-        decodeThread?.start()
     }
 
     fun onRtspClientStopped() {
-        if (DEBUG) Log.d(TAG, "onRtspClientStopped()")
+        if (DEBUG) Log.v(TAG, "onRtspClientStopped()")
         rtspStopped.set(true)
         btnStartStop?.text = "Start RTSP"
         decodeThread?.interrupt()
         decodeThread = null
+    }
+
+    fun onRtspClientConnected() {
+        if (DEBUG) Log.v(TAG, "onRtspClientConnected()")
+        if (videoMimeType.isNotEmpty()) {
+            Log.i(TAG, "Starting video decoder with mime type \"$videoMimeType\"")
+            decodeThread = VideoDecodeThread(surface!!, videoMimeType, surfaceWidth, surfaceHeight, videoFrameQueue)
+            decodeThread?.start()
+        }
     }
 
     inner class RtspThread: Thread() {
@@ -80,16 +88,30 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
 
                 override fun onRtspConnected(sdpInfo: RtspClient.SdpInfo) {
                     if (DEBUG) Log.v(TAG, "onRtspConnected()")
-                    videoFrameQueue.clear()
-                    val sps : ByteArray? = sdpInfo.videoTrack?.sps
-                    val pps : ByteArray? = sdpInfo.videoTrack?.pps
-                    // Initialize decoder
-                    if (sps != null && pps != null) {
-                        val data = ByteArray(sps.size + pps.size)
-                        sps.copyInto(data, 0, 0, sps.size)
-                        pps.copyInto(data, sps.size, 0, pps.size)
-                        videoFrameQueue.push(VideoFrameQueue.VideoFrame(data, 0, data.size, 0))
+                    if (sdpInfo.videoTrack != null) {
+                        when (sdpInfo.videoTrack?.videoCodec) {
+                            RtspClient.VIDEO_CODEC_H264 -> videoMimeType = "video/avc";
+                            RtspClient.VIDEO_CODEC_H265 -> videoMimeType = "video/hevc";
+                        }
+                        videoFrameQueue.clear()
+                        val sps: ByteArray? = sdpInfo.videoTrack?.sps
+                        val pps: ByteArray? = sdpInfo.videoTrack?.pps
+                        // Initialize decoder
+                        if (sps != null && pps != null) {
+                            val data = ByteArray(sps.size + pps.size)
+                            sps.copyInto(data, 0, 0, sps.size)
+                            pps.copyInto(data, sps.size, 0, pps.size)
+                            videoFrameQueue.push(VideoFrameQueue.VideoFrame(data, 0, data.size, 0))
+                        } else {
+                            if (DEBUG) Log.d(TAG, "RTSP SPS and PPS NAL units missed in SDP")
+                        }
                     }
+                    if (sdpInfo.audioTrack != null) {
+                        when (sdpInfo.videoTrack?.videoCodec) {
+                            RtspClient.AUDIO_CODEC_AAC -> audioMimeType = "audio/mp4a-latm";
+                        }
+                    }
+                    onRtspClientConnected();
                 }
 
                 override fun onRtspFailedUnauthorized() {
@@ -253,7 +275,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
         surfaceHeight = height
         if (decodeThread != null) {
             decodeThread?.interrupt()
-            decodeThread = DecodeThread(surface!!, "video/avc", width, height, videoFrameQueue)
+            decodeThread = VideoDecodeThread(surface!!, videoMimeType, width, height, videoFrameQueue)
             decodeThread?.start()
         }
     }
@@ -272,17 +294,17 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
 
 }
 
-private class DecodeThread(
+private class VideoDecodeThread(
         private val surface: Surface,
         private val mimeType: String,
         private val width: Int,
         private val height: Int,
         private val videoFrameQueue: VideoFrameQueue) : Thread() {
     private var decoder: MediaCodec? = null
-    private val TAG: String = DecodeThread::class.java.simpleName
+    private val TAG: String = VideoDecodeThread::class.java.simpleName
     private val DEBUG = true
     override fun run() {
-        if (DEBUG) Log.d(TAG, "DecodeThread started")
+        if (DEBUG) Log.d(TAG, "VideoDecodeThread started")
         decoder = MediaCodec.createDecoderByType(mimeType)
         val format = MediaFormat.createVideoFormat(mimeType, width, height)
         decoder!!.configure(format, surface, null, 0)
@@ -338,7 +360,7 @@ private class DecodeThread(
         decoder!!.stop()
         decoder!!.release()
         videoFrameQueue.clear()
-        if (DEBUG) Log.d(TAG, "DecodeThread stopped")
+        if (DEBUG) Log.d(TAG, "VideoDecodeThread stopped")
     }
 }
 
