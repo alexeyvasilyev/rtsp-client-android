@@ -117,7 +117,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 // https://www.ietf.org/rfc/rfc2326.txt
 public class RtspClient {
 
-            static final String TAG = RtspClient.class.getSimpleName();
+    private static final String TAG = RtspClient.class.getSimpleName();
+            static final String TAG_DEBUG = TAG + " DBG";
     private static final boolean DEBUG = false;
 
     public interface RtspClientListener {
@@ -320,8 +321,8 @@ public class RtspClient {
             int contentLength = getHeaderContentLength(headers);
             if (contentLength > 0) {
                 String content = readContentAsText(inputStream, contentLength);
-                if (DEBUG)
-                    Log.i(TAG, "" + content);
+                if (debug)
+                    Log.i(TAG_DEBUG, "" + content);
                 try {
                     List<Pair<String, String>> params = getDescribeParams(content);
                     sdpInfo = getSdpInfoFromDescribeParams(params);
@@ -632,7 +633,7 @@ public class RtspClient {
     private int readResponseStatusCode(@NonNull InputStream inputStream) throws IOException {
         String line = readLine(inputStream);
         if (debug)
-            Log.d(TAG, "" + line);
+            Log.d(TAG_DEBUG, "" + line);
         if (!TextUtils.isEmpty(line)) {
             //noinspection ConstantConditions
             int indexRtsp = line.indexOf("RTSP/1.0 "); // 9 characters
@@ -658,7 +659,7 @@ public class RtspClient {
             line = readLine(inputStream);
             if (!TextUtils.isEmpty(line)) {
                 if (debug)
-                    Log.d(TAG, "" + line);
+                    Log.d(TAG_DEBUG, "" + line);
                 if (CRLF.equals(line)) {
                     return headers;
                 } else {
@@ -1188,6 +1189,6 @@ class LoggerOutputStream extends BufferedOutputStream {
     public synchronized void write(byte[] b, int off, int len) throws IOException {
         super.write(b, off, len);
         if (logging)
-            Log.i(RtspClient.TAG, new String(b, off, len));
+            Log.i(RtspClient.TAG_DEBUG, new String(b, off, len));
     }
 }

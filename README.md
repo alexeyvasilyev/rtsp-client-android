@@ -18,7 +18,7 @@ allprojects {
   }
 }
 dependencies {
-  implementation 'com.github.alexeyvasilyev:rtsp-client-android:1.1.0'
+  implementation 'com.github.alexeyvasilyev:rtsp-client-android:1.2.1'
 }
 ```
 
@@ -67,6 +67,8 @@ SSLSocket sslSocket = NetUtils.createSslSocketAndConnect(uri.getHost(), uri.getP
 RtspClient rtspClient = new RtspClient.Builder(socket, uri.toString(), stopped, rtspClientListener)
     .requestVideo(true)
     .requestAudio(true)
+    .withDebug(false)
+    .withUserAgent("RTSP client")
     .withCredentials(username, password)
     .build();
 // Blocking call until stopped variable is true or connection failed

@@ -161,6 +161,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                         .requestVideo(checkVideo!!.isChecked)
                         .requestAudio(checkAudio!!.isChecked)
                         .withDebug(true)
+                        .withUserAgent("RTSP test")
                         .withCredentials(username, password)
                         .build()
                 rtspClient.execute()
