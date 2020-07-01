@@ -117,7 +117,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 // https://www.ietf.org/rfc/rfc2326.txt
 public class RtspClient {
 
-    private static final String TAG = RtspClient.class.getSimpleName();
+            static final String TAG = RtspClient.class.getSimpleName();
     private static final boolean DEBUG = false;
 
     public interface RtspClientListener {
@@ -192,6 +192,7 @@ public class RtspClient {
 //  private boolean sendOptionsCommand;
     private boolean requestVideo;
     private boolean requestAudio;
+    private boolean debug;
     private @Nullable String username;
     private @Nullable String password;
     private @Nullable String userAgent;
@@ -206,6 +207,7 @@ public class RtspClient {
         requestAudio = builder.requestAudio;
         username = builder.username;
         password = builder.password;
+        debug = builder.debug;
         userAgent = builder.userAgent;
     }
 
@@ -215,7 +217,9 @@ public class RtspClient {
         listener.onRtspConnecting();
         try {
             InputStream inputStream = rtspSocket.getInputStream();
-            OutputStream outputStream = new BufferedOutputStream(rtspSocket.getOutputStream());
+            OutputStream outputStream = debug ?
+                    new LoggerOutputStream(rtspSocket.getOutputStream()) :
+                    new BufferedOutputStream(rtspSocket.getOutputStream());
 
             SdpInfo sdpInfo = new SdpInfo();
             int cSeq = 0;
@@ -387,7 +391,6 @@ public class RtspClient {
             checkExitFlag(exitFlag);
             if (digestRealmNonce != null)
                 authToken = getDigestAuthHeader(username, password, "PLAY", uriRtsp /*?*/, digestRealmNonce.first, digestRealmNonce.second);
-            //noinspection ConstantConditions
             sendPlayCommand(outputStream, uriRtsp, ++cSeq, userAgent, authToken, session);
             status = readResponseStatusCode(inputStream);
             if (DEBUG)
@@ -626,9 +629,9 @@ public class RtspClient {
         outputStream.flush();
     }
 
-    private static int readResponseStatusCode(@NonNull InputStream inputStream) throws IOException {
+    private int readResponseStatusCode(@NonNull InputStream inputStream) throws IOException {
         String line = readLine(inputStream);
-        if (DEBUG)
+        if (debug)
             Log.d(TAG, "" + line);
         if (!TextUtils.isEmpty(line)) {
             //noinspection ConstantConditions
@@ -648,14 +651,14 @@ public class RtspClient {
     }
 
     @NonNull
-    private static ArrayList<Pair<String, String>> readResponseHeaders(@NonNull InputStream inputStream) throws IOException {
+    private ArrayList<Pair<String, String>> readResponseHeaders(@NonNull InputStream inputStream) throws IOException {
         ArrayList<Pair<String, String>> headers = new ArrayList<>();
         String line;
         while (true) {
             line = readLine(inputStream);
             if (!TextUtils.isEmpty(line)) {
-//                if (DEBUG)
-//                    Log.d(TAG, "" + line);
+                if (debug)
+                    Log.d(TAG, "" + line);
                 if (CRLF.equals(line)) {
                     return headers;
                 } else {
@@ -1110,6 +1113,7 @@ public class RtspClient {
 //      private boolean sendOptionsCommand = true;
         private boolean requestVideo = true;
         private boolean requestAudio = true;
+        private boolean debug = false;
         private @Nullable String username = null;
         private @Nullable String password = null;
         private @Nullable String userAgent = DEFAULT_USER_AGENT;
@@ -1123,6 +1127,12 @@ public class RtspClient {
             this.uriRtsp = uriRtsp;
             this.exitFlag = exitFlag;
             this.listener = listener;
+        }
+
+        @NonNull
+        public Builder withDebug(boolean debug) {
+            this.debug = debug;
+            return this;
         }
 
         @NonNull
@@ -1160,5 +1170,24 @@ public class RtspClient {
         public RtspClient build() {
             return new RtspClient(this);
         }
+    }
+}
+
+class LoggerOutputStream extends BufferedOutputStream {
+    private boolean logging = true;
+
+    public LoggerOutputStream(@NonNull OutputStream out) {
+        super(out);
+    }
+
+    public synchronized void setLogging(boolean logging) {
+        this.logging = logging;
+    }
+
+    @Override
+    public synchronized void write(byte[] b, int off, int len) throws IOException {
+        super.write(b, off, len);
+        if (logging)
+            Log.i(RtspClient.TAG, new String(b, off, len));
     }
 }

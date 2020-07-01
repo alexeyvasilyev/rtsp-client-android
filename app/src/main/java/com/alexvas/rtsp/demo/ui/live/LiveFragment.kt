@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 private const val DEFAULT_RTSP_PORT = 554
 private val TAG: String = LiveFragment::class.java.simpleName
-private const val DEBUG = true
+private const val DEBUG = false
 
 class LiveFragment : Fragment(), SurfaceHolder.Callback {
 
@@ -160,6 +160,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                 val rtspClient = RtspClient.Builder(socket, uri.toString(), rtspStopped, listener)
                         .requestVideo(checkVideo!!.isChecked)
                         .requestAudio(checkAudio!!.isChecked)
+                        .withDebug(true)
                         .withCredentials(username, password)
                         .build()
                 rtspClient.execute()
