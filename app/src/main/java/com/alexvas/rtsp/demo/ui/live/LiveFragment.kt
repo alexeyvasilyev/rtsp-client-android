@@ -18,7 +18,7 @@ import com.alexvas.rtsp.RtspClient
 import com.alexvas.rtsp.demo.R
 import com.alexvas.rtsp.demo.decode.AudioDecodeThread
 import com.alexvas.rtsp.demo.decode.VideoDecodeThread
-import com.alexvas.rtsp.demo.decode.VideoFrameQueue
+import com.alexvas.rtsp.demo.decode.FrameQueue
 import com.alexvas.utils.NetUtils
 import com.alexvas.utils.VideoCodecUtils
 import com.alexvas.utils.VideoCodecUtils.NalUnit
@@ -32,8 +32,8 @@ private const val DEBUG = false
 class LiveFragment : Fragment(), SurfaceHolder.Callback {
 
     private lateinit var liveViewModel: LiveViewModel
-    private var videoFrameQueue: VideoFrameQueue = VideoFrameQueue()
-    private var audioFrameQueue: VideoFrameQueue = VideoFrameQueue()
+    private var videoFrameQueue: FrameQueue = FrameQueue()
+    private var audioFrameQueue: FrameQueue = FrameQueue()
     private var rtspThread: RtspThread? = null
     private var videoDecodeThread: VideoDecodeThread? = null
     private var audioDecodeThread: AudioDecodeThread? = null
@@ -112,7 +112,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                             val data = ByteArray(sps.size + pps.size)
                             sps.copyInto(data, 0, 0, sps.size)
                             pps.copyInto(data, sps.size, 0, pps.size)
-                            videoFrameQueue.push(VideoFrameQueue.Frame(data, 0, data.size, 0))
+                            videoFrameQueue.push(FrameQueue.Frame(data, 0, data.size, 0))
                         } else {
                             if (DEBUG) Log.d(TAG, "RTSP SPS and PPS NAL units missed in SDP")
                         }
@@ -151,12 +151,12 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                         }
                         Log.i(TAG, "NALs ($numNals): $textNals")
                     }
-                    videoFrameQueue.push(VideoFrameQueue.Frame(data, offset, length, timestamp))
+                    videoFrameQueue.push(FrameQueue.Frame(data, offset, length, timestamp))
                 }
 
                 override fun onRtspAudioSampleReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
                     if (DEBUG) Log.v(TAG, "onRtspAudioSampleReceived(length=$length, timestamp=$timestamp)")
-                    audioFrameQueue.push(VideoFrameQueue.Frame(data, offset, length, timestamp))
+                    audioFrameQueue.push(FrameQueue.Frame(data, offset, length, timestamp))
                 }
 
                 override fun onRtspConnecting() {

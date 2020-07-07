@@ -8,27 +8,56 @@ class AudioDecodeThread (
         private val mimeType: String,
         private val sampleRate: Int,
         private val channelCount: Int,
-        private val audioFrameQueue: VideoFrameQueue) : Thread() {
-    private var decoder: MediaCodec? = null
+        private val audioFrameQueue: FrameQueue) : Thread() {
+
     private val TAG: String = AudioDecodeThread::class.java.simpleName
     private val DEBUG = true
 
+    fun getAacDecoderConfigData(sampleRate: Int, channels: Int): ByteArray {
+        // AOT_LC = 2
+        // 0001 0000 0000 0000
+        var extraDataAac = 2 shl 11
+        // Sample rate
+        when (sampleRate) {
+            7350  -> extraDataAac = extraDataAac or (0xC shl 7)
+            8000  -> extraDataAac = extraDataAac or (0xB shl 7)
+            11025 -> extraDataAac = extraDataAac or (0xA shl 7)
+            12000 -> extraDataAac = extraDataAac or (0x9 shl 7)
+            16000 -> extraDataAac = extraDataAac or (0x8 shl 7)
+            22050 -> extraDataAac = extraDataAac or (0x7 shl 7)
+            24000 -> extraDataAac = extraDataAac or (0x6 shl 7)
+            32000 -> extraDataAac = extraDataAac or (0x5 shl 7)
+            44100 -> extraDataAac = extraDataAac or (0x4 shl 7)
+            48000 -> extraDataAac = extraDataAac or (0x3 shl 7)
+            64000 -> extraDataAac = extraDataAac or (0x2 shl 7)
+            88200 -> extraDataAac = extraDataAac or (0x1 shl 7)
+            96000 -> extraDataAac = extraDataAac or (0x0 shl 7)
+        }
+        // Channels
+        extraDataAac = extraDataAac or (channels shl 3)
+        val extraData = ByteArray(2)
+        extraData[0] = (extraDataAac and 0xff00 shr 8).toByte() // high byte
+        extraData[1] = (extraDataAac and 0xff).toByte()         // low byte
+        return extraData;
+    }
+
     override fun run() {
         if (DEBUG) Log.d(TAG, "AudioDecodeThread started")
-        decoder = MediaCodec.createDecoderByType(mimeType)
-        val format = MediaFormat.createAudioFormat(mimeType, sampleRate, channelCount)
-        format.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC);
-        format.setInteger(MediaFormat.KEY_BIT_RATE, 128000);
-        decoder!!.configure(format, null, null, 0)
-        if (decoder == null) {
-            Log.e(TAG, "Can't find audio info!")
-            return
-        }
-        decoder!!.start()
 
-        val bufferSize = AudioTrack.getMinBufferSize(
-                sampleRate /*44100*/, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
-        // create our AudioTrack instance
+        // Creating audio decoder
+        val decoder = MediaCodec.createDecoderByType(mimeType)
+        val format = MediaFormat.createAudioFormat(mimeType, sampleRate, channelCount)
+
+        val csd0 = getAacDecoderConfigData(sampleRate, channelCount)
+        val bb = ByteBuffer.wrap(csd0);
+        format.setByteBuffer("csd-0", bb);
+        format.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
+
+        decoder.configure(format, null, null, 0)
+        decoder.start()
+
+        // Creating audio playback device
+        val bufferSize = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val audioTrack = AudioTrack(
                 AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -42,26 +71,27 @@ class AudioDecodeThread (
                 bufferSize,
                 AudioTrack.MODE_STREAM,
                 0)
+        audioTrack.play()
 
         val bufferInfo = MediaCodec.BufferInfo()
         while (!interrupted()) {
-            val inIndex: Int = decoder!!.dequeueInputBuffer(10000L)
+            val inIndex: Int = decoder.dequeueInputBuffer(10000L)
             if (inIndex >= 0) {
                 // fill inputBuffers[inputBufferIndex] with valid data
-                val byteBuffer: ByteBuffer? = decoder!!.getInputBuffer(inIndex)
+                val byteBuffer: ByteBuffer? = decoder.getInputBuffer(inIndex)
                 byteBuffer?.rewind()
 
                 // Preventing BufferOverflowException
 //              if (length > byteBuffer.limit()) throw DecoderFatalException("Error")
 
-                val audioFrame: VideoFrameQueue.Frame?
+                val audioFrame: FrameQueue.Frame?
                 try {
                     audioFrame = audioFrameQueue.pop()
                     if (audioFrame == null) {
                         Log.d(TAG, "Empty frame")
                     } else {
                         byteBuffer!!.put(audioFrame.data, audioFrame.offset, audioFrame.length)
-                        decoder!!.queueInputBuffer(inIndex, audioFrame.offset, audioFrame.length, audioFrame.timestamp, 0)
+                        decoder.queueInputBuffer(inIndex, audioFrame.offset, audioFrame.length, audioFrame.timestamp, 0)
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -69,12 +99,12 @@ class AudioDecodeThread (
             }
 
             try {
-                val outIndex = decoder!!.dequeueOutputBuffer(bufferInfo, 10000)
+                val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000)
                 when (outIndex) {
-                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: " + decoder!!.outputFormat)
+                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: " + decoder.outputFormat)
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
                     else -> {
-                        val byteBuffer: ByteBuffer? = decoder!!.getOutputBuffer(outIndex)
+                        val byteBuffer: ByteBuffer? = decoder.getOutputBuffer(outIndex)
 
                         val chunk = ByteArray(bufferInfo.size)
                         byteBuffer?.get(chunk)
@@ -83,7 +113,7 @@ class AudioDecodeThread (
                         if (chunk.isNotEmpty()) {
                             audioTrack.write(chunk, 0, chunk.size)
                         }
-                        decoder!!.releaseOutputBuffer(outIndex, false)
+                        decoder.releaseOutputBuffer(outIndex, false)
                     }
                 }
             } catch (e: java.lang.Exception) {
@@ -96,8 +126,11 @@ class AudioDecodeThread (
                 break
             }
         }
-        decoder!!.stop()
-        decoder!!.release()
+        audioTrack.flush()
+        audioTrack.release()
+
+        decoder.stop()
+        decoder.release()
         audioFrameQueue.clear()
         if (DEBUG) Log.d(TAG, "AudioDecodeThread stopped")
     }

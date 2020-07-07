@@ -5,7 +5,9 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import java.io.IOException;
+import com.google.android.exoplayer2.util.ParsableBitArray;
+import com.google.android.exoplayer2.util.ParsableByteArray;
+
 import java.util.Arrays;
 
 // https://tools.ietf.org/html/rfc3640
@@ -18,7 +20,10 @@ import java.util.Arrays;
 public class AacParser {
 
     private static final String TAG = AacParser.class.getSimpleName();
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
+
+    private final ParsableBitArray headerScratchBits;
+    private final ParsableByteArray headerScratchBytes;
 
     private static final int MODE_LBR = 0;
     private static final int MODE_HBR = 1;
@@ -33,25 +38,35 @@ public class AacParser {
     private static final int FRAME_SIZES[] = {63, 8191};
 
     private final int _aacMode;
+    private boolean completeFrameIndicator = true;
 
     public AacParser(@NonNull String aacMode) {
         _aacMode = aacMode.equalsIgnoreCase("AAC-lbr") ? MODE_LBR : MODE_HBR;
+
+        headerScratchBits = new ParsableBitArray();
+        headerScratchBytes = new ParsableByteArray();
     }
 
     @Nullable
-    public byte[] processRtpPacketAndGetSample(@NonNull byte[] data, int length) throws IOException {
+    public byte[] processRtpPacketAndGetSample(@NonNull byte[] data, int length) {
         if (DEBUG)
             Log.v(TAG, "processRtpPacketAndGetSample(length=" + length + ")");
         int auHeadersCount = 1;
         int numBitsAuSize = NUM_BITS_AU_SIZES[_aacMode];
         int numBitsAuIndex = NUM_BITS_AU_INDEX[_aacMode];
 
+        ParsableByteArray packet = new ParsableByteArray(data, length);
+
 //      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+- .. -+-+-+-+-+-+-+-+-+-+
 //      |AU-headers-length|AU-header|AU-header|      |AU-header|padding|
 //      |                 |   (1)   |   (2)   |      |   (n)   | bits  |
 //      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+- .. -+-+-+-+-+-+-+-+-+-+
-        int auHeadersLength = ((data[0] & 0xFF) << 8) | (data[1] & 0xFF);
+        int auHeadersLength = packet.readShort();//((data[0] & 0xFF) << 8) | (data[1] & 0xFF);
         int auHeadersLengthBytes = (auHeadersLength + 7) / 8;
+
+        headerScratchBytes.reset(auHeadersLengthBytes);
+        packet.readBytes(headerScratchBytes.data, 0, auHeadersLengthBytes);
+        headerScratchBits.reset(headerScratchBytes.data);
 
         int bitsAvailable = auHeadersLength - (numBitsAuSize + numBitsAuIndex);
 
@@ -59,11 +74,41 @@ public class AacParser {
             auHeadersCount +=  bitsAvailable / (numBitsAuSize + numBitsAuIndex);
         }
 
-        byte[] auHeader = new byte[length-2-auHeadersLengthBytes];
-        System.arraycopy(data,2-auHeadersLengthBytes, auHeader,0,auHeader.length);
-        if (DEBUG)
-            Log.d(TAG, "AU headers size: " + auHeadersLengthBytes + ", AU headers: " + auHeadersCount + ", sample length: " + auHeader.length);
-        return auHeader;
+        if (auHeadersCount == 1) {
+            int auSize = headerScratchBits.readBits(numBitsAuSize);
+            int auIndex = headerScratchBits.readBits(numBitsAuIndex);
+
+            if (completeFrameIndicator) {
+                if (auIndex == 0) {
+                    if (packet.bytesLeft() == auSize) {
+                        return handleSingleAacFrame(packet);
+
+                    } else {
+//                        handleFragmentationAacFrame(packet, auSize);
+                    }
+                }
+            } else {
+//                handleFragmentationAacFrame(packet, auSize);
+            }
+
+        } else {
+            if (completeFrameIndicator) {
+//                handleMultipleAacFrames(packet, auHeadersLength);
+            }
+        }
+//        byte[] auHeader = new byte[length-2-auHeadersLengthBytes];
+//        System.arraycopy(data,2-auHeadersLengthBytes, auHeader,0, auHeader.length);
+//        if (DEBUG)
+//            Log.d(TAG, "AU headers size: " + auHeadersLengthBytes + ", AU headers: " + auHeadersCount + ", sample length: " + auHeader.length);
+//        return auHeader;
+        return new byte[0];
+    }
+
+    private byte[] handleSingleAacFrame(ParsableByteArray packet) {
+        int length = packet.bytesLeft();
+        byte[] data = new byte[length];
+        System.arraycopy(packet.data, packet.getPosition(), data,0, data.length);
+        return data;
     }
 
     private static final class AUHeader {

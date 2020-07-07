@@ -5,11 +5,11 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.TimeUnit
 
-class VideoFrameQueue {
+class FrameQueue {
 
     class Frame(val data: ByteArray, val offset: Int, val length: Int, val timestamp: Long)
 
-    val TAG: String = VideoFrameQueue::class.java.simpleName
+    val TAG: String = FrameQueue::class.java.simpleName
     val queue: BlockingQueue<Frame> = ArrayBlockingQueue(60)
 
     @Throws(InterruptedException::class)
