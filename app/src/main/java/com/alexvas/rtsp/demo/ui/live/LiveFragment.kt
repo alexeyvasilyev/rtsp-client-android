@@ -1,8 +1,5 @@
 package com.alexvas.rtsp.demo.ui.live
 
-import android.media.MediaCodec
-import android.media.MediaCodec.BufferInfo
-import android.media.MediaFormat
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -19,14 +16,13 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.alexvas.rtsp.RtspClient
 import com.alexvas.rtsp.demo.R
+import com.alexvas.rtsp.demo.decode.AudioDecodeThread
+import com.alexvas.rtsp.demo.decode.VideoDecodeThread
+import com.alexvas.rtsp.demo.decode.VideoFrameQueue
 import com.alexvas.utils.NetUtils
 import com.alexvas.utils.VideoCodecUtils
 import com.alexvas.utils.VideoCodecUtils.NalUnit
 import java.net.Socket
-import java.nio.ByteBuffer
-import java.util.concurrent.ArrayBlockingQueue
-import java.util.concurrent.BlockingQueue
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 private const val DEFAULT_RTSP_PORT = 554
@@ -37,8 +33,10 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
 
     private lateinit var liveViewModel: LiveViewModel
     private var videoFrameQueue: VideoFrameQueue = VideoFrameQueue()
+    private var audioFrameQueue: VideoFrameQueue = VideoFrameQueue()
     private var rtspThread: RtspThread? = null
-    private var decodeThread: VideoDecodeThread? = null
+    private var videoDecodeThread: VideoDecodeThread? = null
+    private var audioDecodeThread: AudioDecodeThread? = null
     private var rtspStopped: AtomicBoolean = AtomicBoolean(true)
     private var btnStartStop: Button? = null
     private var surface: Surface? = null
@@ -48,6 +46,8 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
     private var checkAudio: CheckBox? = null
     private var videoMimeType: String = ""
     private var audioMimeType: String = ""
+    private var audioSampleRate: Int = 0
+    private var audioChannelCount: Int = 0
 
     fun onRtspClientStarted() {
         if (DEBUG) Log.v(TAG, "onRtspClientStarted()")
@@ -59,16 +59,23 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
         if (DEBUG) Log.v(TAG, "onRtspClientStopped()")
         rtspStopped.set(true)
         btnStartStop?.text = "Start RTSP"
-        decodeThread?.interrupt()
-        decodeThread = null
+        videoDecodeThread?.interrupt()
+        videoDecodeThread = null
+        audioDecodeThread?.interrupt()
+        audioDecodeThread = null
     }
 
     fun onRtspClientConnected() {
         if (DEBUG) Log.v(TAG, "onRtspClientConnected()")
-        if (videoMimeType.isNotEmpty()) {
+        if (videoMimeType.isNotEmpty() && checkVideo!!.isChecked) {
             Log.i(TAG, "Starting video decoder with mime type \"$videoMimeType\"")
-            decodeThread = VideoDecodeThread(surface!!, videoMimeType, surfaceWidth, surfaceHeight, videoFrameQueue)
-            decodeThread?.start()
+            videoDecodeThread = VideoDecodeThread(surface!!, videoMimeType, surfaceWidth, surfaceHeight, videoFrameQueue)
+            videoDecodeThread?.start()
+        }
+        if (audioMimeType.isNotEmpty() && checkAudio!!.isChecked) {
+            Log.i(TAG, "Starting audio decoder with mime type \"$audioMimeType\"")
+            audioDecodeThread = AudioDecodeThread(audioMimeType, audioSampleRate, audioChannelCount, audioFrameQueue)
+            audioDecodeThread?.start()
         }
     }
 
@@ -93,7 +100,11 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                             RtspClient.VIDEO_CODEC_H264 -> videoMimeType = "video/avc";
                             RtspClient.VIDEO_CODEC_H265 -> videoMimeType = "video/hevc";
                         }
+                        when (sdpInfo.audioTrack?.audioCodec) {
+                            RtspClient.AUDIO_CODEC_AAC -> audioMimeType = "audio/mp4a-latm";
+                        }
                         videoFrameQueue.clear()
+                        audioFrameQueue.clear()
                         val sps: ByteArray? = sdpInfo.videoTrack?.sps
                         val pps: ByteArray? = sdpInfo.videoTrack?.pps
                         // Initialize decoder
@@ -101,15 +112,17 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                             val data = ByteArray(sps.size + pps.size)
                             sps.copyInto(data, 0, 0, sps.size)
                             pps.copyInto(data, sps.size, 0, pps.size)
-                            videoFrameQueue.push(VideoFrameQueue.VideoFrame(data, 0, data.size, 0))
+                            videoFrameQueue.push(VideoFrameQueue.Frame(data, 0, data.size, 0))
                         } else {
                             if (DEBUG) Log.d(TAG, "RTSP SPS and PPS NAL units missed in SDP")
                         }
                     }
                     if (sdpInfo.audioTrack != null) {
-                        when (sdpInfo.videoTrack?.videoCodec) {
+                        when (sdpInfo.audioTrack?.audioCodec) {
                             RtspClient.AUDIO_CODEC_AAC -> audioMimeType = "audio/mp4a-latm";
                         }
+                        audioSampleRate = sdpInfo.audioTrack?.sampleRateHz!!
+                        audioChannelCount = sdpInfo.audioTrack?.channels!!
                     }
                     onRtspClientConnected();
                 }
@@ -138,11 +151,12 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                         }
                         Log.i(TAG, "NALs ($numNals): $textNals")
                     }
-                    videoFrameQueue.push(VideoFrameQueue.VideoFrame(data, offset, length, timestamp))
+                    videoFrameQueue.push(VideoFrameQueue.Frame(data, offset, length, timestamp))
                 }
 
                 override fun onRtspAudioSampleReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
                     if (DEBUG) Log.v(TAG, "onRtspAudioSampleReceived(length=$length, timestamp=$timestamp)")
+                    audioFrameQueue.push(VideoFrameQueue.Frame(data, offset, length, timestamp))
                 }
 
                 override fun onRtspConnecting() {
@@ -275,18 +289,18 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
         surface = holder.surface
         surfaceWidth = width
         surfaceHeight = height
-        if (decodeThread != null) {
-            decodeThread?.interrupt()
-            decodeThread = VideoDecodeThread(surface!!, videoMimeType, width, height, videoFrameQueue)
-            decodeThread?.start()
+        if (videoDecodeThread != null) {
+            videoDecodeThread?.interrupt()
+            videoDecodeThread = VideoDecodeThread(surface!!, videoMimeType, width, height, videoFrameQueue)
+            videoDecodeThread?.start()
         }
     }
 
     // SurfaceHolder.Callback
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         if (DEBUG) Log.v(TAG, "surfaceDestroyed()")
-        decodeThread?.interrupt()
-        decodeThread = null
+        videoDecodeThread?.interrupt()
+        videoDecodeThread = null
     }
 
     // SurfaceHolder.Callback
@@ -294,109 +308,4 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
         if (DEBUG) Log.v(TAG, "surfaceCreated()")
     }
 
-}
-
-private class VideoDecodeThread(
-        private val surface: Surface,
-        private val mimeType: String,
-        private val width: Int,
-        private val height: Int,
-        private val videoFrameQueue: VideoFrameQueue) : Thread() {
-    private var decoder: MediaCodec? = null
-    private val TAG: String = VideoDecodeThread::class.java.simpleName
-    private val DEBUG = true
-    override fun run() {
-        if (DEBUG) Log.d(TAG, "VideoDecodeThread started")
-        decoder = MediaCodec.createDecoderByType(mimeType)
-        val format = MediaFormat.createVideoFormat(mimeType, width, height)
-        decoder!!.configure(format, surface, null, 0)
-        if (decoder == null) {
-            Log.e(TAG, "Can't find video info!")
-            return
-        }
-        decoder!!.start()
-        val bufferInfo = BufferInfo()
-        while (!interrupted()) {
-            val inIndex: Int = decoder!!.dequeueInputBuffer(10000L)
-            if (inIndex >= 0) {
-                // fill inputBuffers[inputBufferIndex] with valid data
-                val byteBuffer: ByteBuffer? = decoder!!.getInputBuffer(inIndex)
-                byteBuffer?.rewind()
-
-                // Preventing BufferOverflowException
-//              if (length > byteBuffer.limit()) throw DecoderFatalException("Error")
-
-                val videoFrame: VideoFrameQueue.VideoFrame?
-                try {
-                    videoFrame = videoFrameQueue.pop()
-                    if (videoFrame == null) {
-                        Log.d(TAG, "Empty frame")
-                    } else {
-                        byteBuffer!!.put(videoFrame.data, videoFrame.offset, videoFrame.length)
-                        decoder!!.queueInputBuffer(inIndex, videoFrame.offset, videoFrame.length, videoFrame.timestamp, 0)
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-
-            try {
-                val outIndex = decoder!!.dequeueOutputBuffer(bufferInfo, 10000)
-                when (outIndex) {
-                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: " + decoder!!.outputFormat)
-                    MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
-                    else -> {
-                        decoder!!.releaseOutputBuffer(outIndex, bufferInfo.size != 0)
-                    }
-                }
-            } catch (e: java.lang.Exception) {
-                e.printStackTrace()
-            }
-
-            // All decoded frames have been rendered, we can stop playing now
-            if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
-                Log.d(TAG, "OutputBuffer BUFFER_FLAG_END_OF_STREAM")
-                break
-            }
-        }
-        decoder!!.stop()
-        decoder!!.release()
-        videoFrameQueue.clear()
-        if (DEBUG) Log.d(TAG, "VideoDecodeThread stopped")
-    }
-}
-
-private class VideoFrameQueue {
-
-    class VideoFrame(val data: ByteArray, val offset: Int, val length: Int, val timestamp: Long)
-
-    val TAG: String = VideoFrameQueue::class.java.simpleName
-    val queue: BlockingQueue<VideoFrame> = ArrayBlockingQueue(60)
-
-    @Throws(InterruptedException::class)
-    fun push(frame: VideoFrame): Boolean {
-        if (queue.offer(frame, 5, TimeUnit.MILLISECONDS)) {
-            return true
-        }
-        Log.w(TAG, "Cannot add frame, queue is full")
-        return false
-    }
-
-    @Throws(InterruptedException::class)
-    fun pop(): VideoFrame? {
-        try {
-            val frame: VideoFrame? = queue.poll(1000, TimeUnit.MILLISECONDS)
-            if (frame == null) {
-                Log.w(TAG, "Cannot get frame, queue is empty")
-            }
-            return frame
-        } catch (e: InterruptedException) {
-            Thread.currentThread().interrupt()
-        }
-        return null
-    }
-
-    fun clear() {
-        queue.clear()
-    }
 }
