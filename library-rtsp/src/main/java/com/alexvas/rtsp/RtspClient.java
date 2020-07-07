@@ -168,6 +168,7 @@ public class RtspClient {
         public int audioCodec = AUDIO_CODEC_AAC;
         public int sampleRateHz; // 16000, 8000
         public int channels; // 1 - mono, 2 - stereo
+        public String mode; // AAC-lbr, AAC-hbr
     }
 
     private static final String CRLF = "\r\n";
@@ -471,7 +472,8 @@ public class RtspClient {
         byte[] data = new byte[15000]; // Usually not bigger than MTU
 
         // Read 1000 RTP packets
-        VideoRtpParser parser = new VideoRtpParser();
+        final VideoRtpParser videoParser = new VideoRtpParser();
+        final AacParser audioParser = (sdpInfo.audioTrack != null ? new AacParser(sdpInfo.audioTrack.mode) : null);
 
         byte[] nalUnitSps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.sps : null);
         byte[] nalUnitPps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.pps : null);
@@ -487,8 +489,7 @@ public class RtspClient {
 
             // Video
             if (sdpInfo.videoTrack != null && header.payloadType == sdpInfo.videoTrack.payloadType) {
-//            if (header.payloadType >= 96 && header.payloadType <= 99) {
-                byte[] nalUnit = parser.processRtpPacketAndGetNalUnit(data, header.payloadSize);
+                byte[] nalUnit = videoParser.processRtpPacketAndGetNalUnit(data, header.payloadSize);
                 if (nalUnit != null) {
                     int type = VideoCodecUtils.getH264NalUnitType(nalUnit, 0, nalUnit.length);
 //                  Log.i(TAG, "NAL u: " + VideoCodecUtils.getH264NalUnitTypeString(type));
@@ -534,7 +535,11 @@ public class RtspClient {
 
             // Audio
             } else if (sdpInfo.audioTrack != null && header.payloadType == sdpInfo.audioTrack.payloadType) {
-                listener.onRtspAudioSampleReceived(data, 0, header.payloadSize, (long)(header.timeStamp * 11.111111));
+                if (audioParser != null) {
+                    byte[] sample = audioParser.processRtpPacketAndGetSample(data, header.payloadSize);
+                    if (sample != null)
+                        listener.onRtspAudioSampleReceived(sample, 0, sample.length, (long) (header.timeStamp * 11.111111));
+                }
 
             // Unknown
             } else {
@@ -717,17 +722,14 @@ public class RtspClient {
                         // a=fmtp:96 packetization-mode=1; profile-level-id=4D4029; sprop-parameter-sets=Z01AKZpmBkCb8uAtQEBAQXpw,aO48gA==
                         // a=fmtp:97 streamtype=5; profile-level-id=15; mode=AAC-hbr; config=1408; sizeLength=13; indexLength=3; indexDeltaLength=3; profile=1; bitrate=32000;
                         // a=fmtp:97 streamtype=5;profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1408
+                        // a=fmtp:96 streamtype=5; profile-level-id=14; mode=AAC-lbr; config=1388; sizeLength=6; indexLength=2; indexDeltaLength=2; constantDuration=1024; maxDisplacement=5
                         } else if (param.second.startsWith("fmtp:")) {
                             // Video
                             if (currentTrack instanceof VideoTrack) {
-                                Pair<byte[], byte[]> spsPps = getSpsPpsFromDescribeParam(param);
-                                if (spsPps != null) {
-                                    ((VideoTrack) tracks[0]).sps = spsPps.first;
-                                    ((VideoTrack) tracks[0]).pps = spsPps.second;
-                                }
+                                updateVideoTrackFromDescribeParam((VideoTrack)tracks[0], param);
                             // Audio
                             } else {
-
+                                updateAudioTrackFromDescribeParam((AudioTrack)tracks[1], param);
                             }
 
                         // a=rtpmap:96 H264/90000
@@ -837,13 +839,6 @@ public class RtspClient {
         sdpInfo.videoTrack = ((VideoTrack)tracks[0]);
         sdpInfo.audioTrack = ((AudioTrack)tracks[1]);
 
-//        // Parsing "a=fmtp:<format> <format specific parameters>"
-//        // a=fmtp:99 sprop-parameter-sets=Z0LgKdoBQBbpuAgIMBA=,aM4ySA==;packetization-mode=1;profile-level-id=42e029
-//        Pair<byte[], byte[]> spsPps = getSpsPpsFromDescribeParam(params);
-//        if (spsPps != null) {
-//            sdpInfo.sps = spsPps.first;
-//            sdpInfo.pps = spsPps.second;
-//        }
         for (Pair<String, String> param : params) {
             switch (param.first) {
                 case "s": sdpInfo.sessionName = param.second; break;
@@ -853,48 +848,78 @@ public class RtspClient {
         return sdpInfo;
     }
 
-    /**
-     * @return pair of SPS and PPS
-     */
+    // a=fmtp:97 streamtype=5;profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1408
     @Nullable
-    private static Pair<byte[], byte[]> getSpsPpsFromDescribeParam(@NonNull Pair<String, String> param) {
-        // a=fmtp:96 packetization-mode=1;profile-level-id=42C028;sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==;
-        // a=fmtp:96 packetization-mode=1; profile-level-id=4D4029; sprop-parameter-sets=Z01AKZpmBkCb8uAtQEBAQXpw,aO48gA==
-        // a=fmtp:99 sprop-parameter-sets=Z0LgKdoBQBbpuAgIMBA=,aM4ySA==;packetization-mode=1;profile-level-id=42e029
-        if (param.first.equals("a") && param.second.startsWith("fmtp:9")) { //
-            String value = param.second.substring(8).trim(); // packetization-mode=1;profile-level-id=42C028;sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==;
+    private static List<Pair<String, String>> getSdpAParams(@NonNull Pair<String, String> param) {
+        if (param.first.equals("a") && param.second.startsWith("fmtp:")) { //
+            String value = param.second.substring(9).trim(); // fmtp can be '96' (2 chars) and '127' (3 chars)
             String[] paramsA = TextUtils.split(value, ";");
+            // streamtype=5
+            // profile-level-id=1
+            // mode=AAC-hbr
+            ArrayList<Pair<String, String>> retParams = new ArrayList<>();
             for (String paramA: paramsA) {
                 paramA = paramA.trim();
-                // sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==
-                if (paramA.startsWith("sprop-parameter-sets=")) {
-                    // Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==
-                    paramA = paramA.substring(21);
-                    String[] paramsSpsPps = TextUtils.split(paramA, ",");
-                    if (paramsSpsPps.length > 1) {
-                        byte[] sps = Base64.decode(paramsSpsPps[0], Base64.NO_WRAP);
-                        byte[] pps = Base64.decode(paramsSpsPps[1], Base64.NO_WRAP);
-                        byte[] nalSps = new byte[sps.length + 4];
-                        byte[] nalPps = new byte[pps.length + 4];
-                        // Add 00 00 00 01 NAL unit header
-                        nalSps[0] = 0;
-                        nalSps[1] = 0;
-                        nalSps[2] = 0;
-                        nalSps[3] = 1;
-                        System.arraycopy(sps, 0, nalSps, 4, sps.length);
-                        nalPps[0] = 0;
-                        nalPps[1] = 0;
-                        nalPps[2] = 0;
-                        nalPps[3] = 1;
-                        System.arraycopy(pps, 0, nalPps, 4, pps.length);
-                        return new Pair<>(nalSps, nalPps);
-                    }
-                }
+                String[] subParam = TextUtils.split(paramA, "=");
+                // [0]=streamtype, [1]=5
+                if (subParam.length == 2)
+                    retParams.add(Pair.create(subParam[0], subParam[1]));
             }
+            return retParams;
         } else {
             Log.e(TAG, "Not a valid fmtp");
         }
         return null;
+    }
+
+    private static void updateVideoTrackFromDescribeParam(@NonNull VideoTrack videoTrack, @NonNull Pair<String, String> param) {
+        // a=fmtp:96 packetization-mode=1;profile-level-id=42C028;sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==;
+        // a=fmtp:96 packetization-mode=1; profile-level-id=4D4029; sprop-parameter-sets=Z01AKZpmBkCb8uAtQEBAQXpw,aO48gA==
+        // a=fmtp:99 sprop-parameter-sets=Z0LgKdoBQBbpuAgIMBA=,aM4ySA==;packetization-mode=1;profile-level-id=42e029
+        List<Pair<String, String>> params = getSdpAParams(param);
+        if (params != null) {
+            for (Pair<String, String> pair: params) {
+                switch (pair.first) {
+                    case "sprop-parameter-sets":
+                        {
+                            String[] paramsSpsPps = TextUtils.split(pair.second, ",");
+                            if (paramsSpsPps.length > 1) {
+                                byte[] sps = Base64.decode(paramsSpsPps[0], Base64.NO_WRAP);
+                                byte[] pps = Base64.decode(paramsSpsPps[1], Base64.NO_WRAP);
+                                byte[] nalSps = new byte[sps.length + 4];
+                                byte[] nalPps = new byte[pps.length + 4];
+                                // Add 00 00 00 01 NAL unit header
+                                nalSps[0] = 0;
+                                nalSps[1] = 0;
+                                nalSps[2] = 0;
+                                nalSps[3] = 1;
+                                System.arraycopy(sps, 0, nalSps, 4, sps.length);
+                                nalPps[0] = 0;
+                                nalPps[1] = 0;
+                                nalPps[2] = 0;
+                                nalPps[3] = 1;
+                                System.arraycopy(pps, 0, nalPps, 4, pps.length);
+                                videoTrack.sps = nalSps;
+                                videoTrack.pps = nalPps;
+                            }
+                        }
+                        break;
+                }
+            }
+        }
+    }
+
+    private static void updateAudioTrackFromDescribeParam(@NonNull AudioTrack audioTrack, @NonNull Pair<String, String> param) {
+        // a=fmtp:96 streamtype=5; profile-level-id=14; mode=AAC-lbr; config=1388; sizeLength=6; indexLength=2; indexDeltaLength=2; constantDuration=1024; maxDisplacement=5
+        // a=fmtp:97 streamtype=5;profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1408
+        List<Pair<String, String>> params = getSdpAParams(param);
+            if (params != null) {
+            for (Pair<String, String> pair: params) {
+                switch (pair.first) {
+                    case "mode": audioTrack.mode = pair.second; break;
+                }
+            }
+        }
     }
 
     private static int getHeaderContentLength(@NonNull ArrayList<Pair<String, String>> headers) {
