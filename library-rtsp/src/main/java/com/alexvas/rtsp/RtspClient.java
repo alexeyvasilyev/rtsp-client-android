@@ -852,7 +852,7 @@ public class RtspClient {
     @Nullable
     private static List<Pair<String, String>> getSdpAParams(@NonNull Pair<String, String> param) {
         if (param.first.equals("a") && param.second.startsWith("fmtp:")) { //
-            String value = param.second.substring(9).trim(); // fmtp can be '96' (2 chars) and '127' (3 chars)
+            String value = param.second.substring(8).trim(); // fmtp can be '96' (2 chars) and '127' (3 chars)
             String[] paramsA = TextUtils.split(value, ";");
             // streamtype=5
             // profile-level-id=1
@@ -860,10 +860,13 @@ public class RtspClient {
             ArrayList<Pair<String, String>> retParams = new ArrayList<>();
             for (String paramA: paramsA) {
                 paramA = paramA.trim();
-                String[] subParam = TextUtils.split(paramA, "=");
-                // [0]=streamtype, [1]=5
-                if (subParam.length == 2)
-                    retParams.add(Pair.create(subParam[0], subParam[1]));
+                // sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==
+                int i = paramA.indexOf("=");
+                if (i != -1)
+                    retParams.add(
+                            Pair.create(
+                                    paramA.substring(0, i),
+                                    paramA.substring(i + 1)));
             }
             return retParams;
         } else {

@@ -1,10 +1,10 @@
 project.ext {
-    compileSdkVersion = 30
+    compileSdkVersion = 29
     buildToolsVersion = '30.0.0'
     minSdkVersion = 21    // 5.0
     targetSdkVersion = 30 // 11.0
-    releaseVersion = "1.2.2"
-    releaseVersionCode = 122
+    releaseVersion = "1.2.3"
+    releaseVersionCode = 123
 
     androidXAnnotationVersion = '1.1.0'
     androidXAppcompatVersion = '1.1.0'
