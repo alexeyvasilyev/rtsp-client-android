@@ -56,7 +56,9 @@ class VideoDecodeThread (
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: " + decoder.outputFormat)
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
                     else -> {
-                        decoder.releaseOutputBuffer(outIndex, bufferInfo.size != 0)
+                        if (outIndex >= 0) {
+                            decoder.releaseOutputBuffer(outIndex, bufferInfo.size != 0)
+                        }
                     }
                 }
             } catch (e: java.lang.Exception) {

@@ -636,10 +636,13 @@ public class RtspClient {
     }
 
     private int readResponseStatusCode(@NonNull InputStream inputStream) throws IOException {
-        String line = readLine(inputStream);
-        if (debug)
-            Log.d(TAG_DEBUG, "" + line);
-        if (!TextUtils.isEmpty(line)) {
+//        String line = readLine(inputStream);
+//        if (debug)
+//            Log.d(TAG_DEBUG, "" + line);
+        String line;
+        while (!TextUtils.isEmpty(line = readLine(inputStream))) {
+            if (debug)
+                Log.d(TAG_DEBUG, "" + line);
             //noinspection ConstantConditions
             int indexRtsp = line.indexOf("RTSP/1.0 "); // 9 characters
             if (indexRtsp >= 0) {
@@ -653,6 +656,8 @@ public class RtspClient {
                 }
             }
         }
+        if (debug)
+            Log.d(TAG_DEBUG, "" + line);
         return -1;
     }
 
@@ -757,14 +762,15 @@ public class RtspClient {
                                 if (values.length > 1) {
                                     AudioTrack track = ((AudioTrack) tracks[1]);
                                     values = TextUtils.split(values[1], "/");
-                                    if (values.length > 2) {
+                                    if (values.length > 1) {
                                         if ("mpeg4-generic".equals(values[0].toLowerCase())) {
                                             track.audioCodec = AUDIO_CODEC_AAC;
                                         } else {
                                             Log.w(TAG, "Unknown audio codec \"" + values[0] + "\"");
                                         }
                                         track.sampleRateHz = Integer.parseInt(values[1]);
-                                        track.channels = Integer.parseInt(values[2]);
+                                        // If no channels specified, use mono, e.g. "a=rtpmap:97 MPEG4-GENERIC/8000"
+                                        track.channels = values.length > 2 ? Integer.parseInt(values[2]) : 1;
                                         Log.i(TAG, "Audio: " + (track.audioCodec == AUDIO_CODEC_AAC ? "AAC LC" : "n/a") + ", sample rate: " + track.sampleRateHz + " Hz, channels: " + track.channels);
                                     }
                                 }

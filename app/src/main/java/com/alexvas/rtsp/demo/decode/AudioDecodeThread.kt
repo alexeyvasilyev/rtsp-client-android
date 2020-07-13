@@ -13,32 +13,34 @@ class AudioDecodeThread (
     private val TAG: String = AudioDecodeThread::class.java.simpleName
     private val DEBUG = true
 
-    fun getAacDecoderConfigData(sampleRate: Int, channels: Int): ByteArray {
-        // AOT_LC = 2
-        // 0001 0000 0000 0000
-        var extraDataAac = 2 shl 11
-        // Sample rate
-        when (sampleRate) {
-            7350  -> extraDataAac = extraDataAac or (0xC shl 7)
-            8000  -> extraDataAac = extraDataAac or (0xB shl 7)
-            11025 -> extraDataAac = extraDataAac or (0xA shl 7)
-            12000 -> extraDataAac = extraDataAac or (0x9 shl 7)
-            16000 -> extraDataAac = extraDataAac or (0x8 shl 7)
-            22050 -> extraDataAac = extraDataAac or (0x7 shl 7)
-            24000 -> extraDataAac = extraDataAac or (0x6 shl 7)
-            32000 -> extraDataAac = extraDataAac or (0x5 shl 7)
-            44100 -> extraDataAac = extraDataAac or (0x4 shl 7)
-            48000 -> extraDataAac = extraDataAac or (0x3 shl 7)
-            64000 -> extraDataAac = extraDataAac or (0x2 shl 7)
-            88200 -> extraDataAac = extraDataAac or (0x1 shl 7)
-            96000 -> extraDataAac = extraDataAac or (0x0 shl 7)
+    companion object {
+        fun getAacDecoderConfigData(sampleRate: Int, channels: Int): ByteArray {
+            // AOT_LC = 2
+            // 0001 0000 0000 0000
+            var extraDataAac = 2 shl 11
+            // Sample rate
+            when (sampleRate) {
+                7350 -> extraDataAac = extraDataAac or (0xC shl 7)
+                8000 -> extraDataAac = extraDataAac or (0xB shl 7)
+                11025 -> extraDataAac = extraDataAac or (0xA shl 7)
+                12000 -> extraDataAac = extraDataAac or (0x9 shl 7)
+                16000 -> extraDataAac = extraDataAac or (0x8 shl 7)
+                22050 -> extraDataAac = extraDataAac or (0x7 shl 7)
+                24000 -> extraDataAac = extraDataAac or (0x6 shl 7)
+                32000 -> extraDataAac = extraDataAac or (0x5 shl 7)
+                44100 -> extraDataAac = extraDataAac or (0x4 shl 7)
+                48000 -> extraDataAac = extraDataAac or (0x3 shl 7)
+                64000 -> extraDataAac = extraDataAac or (0x2 shl 7)
+                88200 -> extraDataAac = extraDataAac or (0x1 shl 7)
+                96000 -> extraDataAac = extraDataAac or (0x0 shl 7)
+            }
+            // Channels
+            extraDataAac = extraDataAac or (channels shl 3)
+            val extraData = ByteArray(2)
+            extraData[0] = (extraDataAac and 0xff00 shr 8).toByte() // high byte
+            extraData[1] = (extraDataAac and 0xff).toByte()         // low byte
+            return extraData;
         }
-        // Channels
-        extraDataAac = extraDataAac or (channels shl 3)
-        val extraData = ByteArray(2)
-        extraData[0] = (extraDataAac and 0xff00 shr 8).toByte() // high byte
-        extraData[1] = (extraDataAac and 0xff).toByte()         // low byte
-        return extraData;
     }
 
     override fun run() {
@@ -58,6 +60,7 @@ class AudioDecodeThread (
 
         // Creating audio playback device
         val bufferSize = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
+//      Log.i(TAG, "sampleRate: $sampleRate, bufferSize: $bufferSize".format(sampleRate, bufferSize))
         val audioTrack = AudioTrack(
                 AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -104,16 +107,18 @@ class AudioDecodeThread (
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: " + decoder.outputFormat)
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
                     else -> {
-                        val byteBuffer: ByteBuffer? = decoder.getOutputBuffer(outIndex)
+                        if (outIndex >= 0) {
+                            val byteBuffer: ByteBuffer? = decoder.getOutputBuffer(outIndex)
 
-                        val chunk = ByteArray(bufferInfo.size)
-                        byteBuffer?.get(chunk)
-                        byteBuffer?.clear()
+                            val chunk = ByteArray(bufferInfo.size)
+                            byteBuffer?.get(chunk)
+                            byteBuffer?.clear()
 
-                        if (chunk.isNotEmpty()) {
-                            audioTrack.write(chunk, 0, chunk.size)
+                            if (chunk.isNotEmpty()) {
+                                audioTrack.write(chunk, 0, chunk.size)
+                            }
+                            decoder.releaseOutputBuffer(outIndex, false)
                         }
-                        decoder.releaseOutputBuffer(outIndex, false)
                     }
                 }
             } catch (e: java.lang.Exception) {

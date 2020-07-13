@@ -96,6 +96,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                 override fun onRtspConnected(sdpInfo: RtspClient.SdpInfo) {
                     if (DEBUG) Log.v(TAG, "onRtspConnected()")
                     if (sdpInfo.videoTrack != null) {
+                        videoFrameQueue.clear()
                         when (sdpInfo.videoTrack?.videoCodec) {
                             RtspClient.VIDEO_CODEC_H264 -> videoMimeType = "video/avc";
                             RtspClient.VIDEO_CODEC_H265 -> videoMimeType = "video/hevc";
@@ -103,8 +104,6 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                         when (sdpInfo.audioTrack?.audioCodec) {
                             RtspClient.AUDIO_CODEC_AAC -> audioMimeType = "audio/mp4a-latm";
                         }
-                        videoFrameQueue.clear()
-                        audioFrameQueue.clear()
                         val sps: ByteArray? = sdpInfo.videoTrack?.sps
                         val pps: ByteArray? = sdpInfo.videoTrack?.pps
                         // Initialize decoder
@@ -118,6 +117,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                         }
                     }
                     if (sdpInfo.audioTrack != null) {
+                        audioFrameQueue.clear()
                         when (sdpInfo.audioTrack?.audioCodec) {
                             RtspClient.AUDIO_CODEC_AAC -> audioMimeType = "audio/mp4a-latm";
                         }

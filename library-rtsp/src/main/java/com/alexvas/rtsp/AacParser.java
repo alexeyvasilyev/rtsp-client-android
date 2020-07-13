@@ -20,7 +20,7 @@ import java.util.Arrays;
 public class AacParser {
 
     private static final String TAG = AacParser.class.getSimpleName();
-    private static final boolean DEBUG = true;
+    private static final boolean DEBUG = false;
 
     private final ParsableBitArray headerScratchBits;
     private final ParsableByteArray headerScratchBytes;
