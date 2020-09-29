@@ -1,5 +1,5 @@
 # rtsp-client-android
-Lightweight RTSP client library for Android written on Java.
+Lightweight RTSP client library for Android written in Java.
 
 ## Features:
 - Android min API 21.
