@@ -39,7 +39,7 @@ class AudioDecodeThread (
             val extraData = ByteArray(2)
             extraData[0] = (extraDataAac and 0xff00 shr 8).toByte() // high byte
             extraData[1] = (extraDataAac and 0xff).toByte()         // low byte
-            return extraData;
+            return extraData
         }
     }
 
@@ -51,8 +51,8 @@ class AudioDecodeThread (
         val format = MediaFormat.createAudioFormat(mimeType, sampleRate, channelCount)
 
         val csd0 = getAacDecoderConfigData(sampleRate, channelCount)
-        val bb = ByteBuffer.wrap(csd0);
-        format.setByteBuffer("csd-0", bb);
+        val bb = ByteBuffer.wrap(csd0)
+        format.setByteBuffer("csd-0", bb)
         format.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
 
         decoder.configure(format, null, null, 0)

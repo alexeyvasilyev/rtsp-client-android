@@ -12,7 +12,6 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.alexvas.rtsp.RtspClient
 import com.alexvas.rtsp.demo.R
@@ -27,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 private const val DEFAULT_RTSP_PORT = 554
 private val TAG: String = LiveFragment::class.java.simpleName
-private const val DEBUG = false
+private const val DEBUG = true
 
 class LiveFragment : Fragment(), SurfaceHolder.Callback {
 
@@ -98,11 +97,11 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                     if (sdpInfo.videoTrack != null) {
                         videoFrameQueue.clear()
                         when (sdpInfo.videoTrack?.videoCodec) {
-                            RtspClient.VIDEO_CODEC_H264 -> videoMimeType = "video/avc";
-                            RtspClient.VIDEO_CODEC_H265 -> videoMimeType = "video/hevc";
+                            RtspClient.VIDEO_CODEC_H264 -> videoMimeType = "video/avc"
+                            RtspClient.VIDEO_CODEC_H265 -> videoMimeType = "video/hevc"
                         }
                         when (sdpInfo.audioTrack?.audioCodec) {
-                            RtspClient.AUDIO_CODEC_AAC -> audioMimeType = "audio/mp4a-latm";
+                            RtspClient.AUDIO_CODEC_AAC -> audioMimeType = "audio/mp4a-latm"
                         }
                         val sps: ByteArray? = sdpInfo.videoTrack?.sps
                         val pps: ByteArray? = sdpInfo.videoTrack?.pps
@@ -119,12 +118,12 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                     if (sdpInfo.audioTrack != null) {
                         audioFrameQueue.clear()
                         when (sdpInfo.audioTrack?.audioCodec) {
-                            RtspClient.AUDIO_CODEC_AAC -> audioMimeType = "audio/mp4a-latm";
+                            RtspClient.AUDIO_CODEC_AAC -> audioMimeType = "audio/mp4a-latm"
                         }
                         audioSampleRate = sdpInfo.audioTrack?.sampleRateHz!!
                         audioChannelCount = sdpInfo.audioTrack?.channels!!
                     }
-                    onRtspClientConnected();
+                    onRtspClientConnected()
                 }
 
                 override fun onRtspFailedUnauthorized() {
@@ -168,7 +167,8 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
             val username = liveViewModel.rtspUsername.value
             val password = liveViewModel.rtspPassword.value
             try {
-                val socket: Socket = NetUtils.createSocketAndConnect(uri.host.toString(), port, 10000)
+                if (DEBUG) Log.d(TAG, "Connecting to ${uri.host.toString()}:$port...")
+                val socket: Socket = NetUtils.createSocketAndConnect(uri.host.toString(), port, 5000)
 
                 // Blocking call until stopped variable is true or connection failed
                 val rtspClient = RtspClient.Builder(socket, uri.toString(), rtspStopped, listener)
@@ -244,15 +244,15 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
             }
         })
 
-        liveViewModel.rtspRequest.observe(viewLifecycleOwner, Observer {
+        liveViewModel.rtspRequest.observe(viewLifecycleOwner, {
             if (textRtspRequest.text.toString() != it)
                 textRtspRequest.setText(it)
         })
-        liveViewModel.rtspUsername.observe(viewLifecycleOwner, Observer {
+        liveViewModel.rtspUsername.observe(viewLifecycleOwner, {
             if (textRtspUsername.text.toString() != it)
                 textRtspUsername.setText(it)
         })
-        liveViewModel.rtspPassword.observe(viewLifecycleOwner, Observer {
+        liveViewModel.rtspPassword.observe(viewLifecycleOwner, {
             if (textRtspPassword.text.toString() != it)
                 textRtspPassword.setText(it)
         })
@@ -260,9 +260,11 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
         btnStartStop = root.findViewById(R.id.button_start_stop_rtsp)
         btnStartStop?.setOnClickListener {
             if (rtspStopped.get()) {
+                if (DEBUG) Log.d(TAG, "Starting RTSP thread...")
                 rtspThread = RtspThread()
                 rtspThread?.start()
             } else {
+                if (DEBUG) Log.d(TAG, "Stopping RTSP thread...")
                 rtspStopped.set(true)
                 rtspThread?.interrupt()
             }

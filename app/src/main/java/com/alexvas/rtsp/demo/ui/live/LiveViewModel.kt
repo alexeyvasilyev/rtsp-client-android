@@ -13,7 +13,7 @@ private const val DEFAULT_RTSP_REQUEST = "rtsp://10.0.1.3:554/axis-media/media.a
 private const val DEFAULT_RTSP_USERNAME = ""
 private const val DEFAULT_RTSP_PASSWORD = ""
 
-private val TAG: String = LiveViewModel::class.java.getSimpleName()
+private val TAG: String = LiveViewModel::class.java.simpleName
 private const val DEBUG = true
 private const val LIVE_PARAMS_FILENAME = "live_params"
 
@@ -63,9 +63,9 @@ class LiveViewModel : ViewModel() {
     fun saveParams(context: Context?) {
         if (DEBUG) Log.v(TAG, "saveParams()")
         val editor = context?.getSharedPreferences(LIVE_PARAMS_FILENAME, Context.MODE_PRIVATE)?.edit()
-        editor?.putString(RTSP_REQUEST_KEY, rtspRequest.getValue())
-        editor?.putString(RTSP_USERNAME_KEY, rtspUsername.getValue())
-        editor?.putString(RTSP_PASSWORD_KEY, rtspPassword.getValue())
+        editor?.putString(RTSP_REQUEST_KEY, rtspRequest.value)
+        editor?.putString(RTSP_USERNAME_KEY, rtspUsername.value)
+        editor?.putString(RTSP_PASSWORD_KEY, rtspPassword.value)
         editor?.apply()
     }
 
