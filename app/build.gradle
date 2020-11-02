@@ -50,6 +50,6 @@ dependencies {
     implementation "androidx.navigation:navigation-ui:${androidXNavigationVersion}"
     implementation "androidx.navigation:navigation-fragment-ktx:${androidXNavigationVersion}"
     implementation "androidx.navigation:navigation-ui-ktx:${androidXNavigationVersion}"
-    implementation 'com.github.hannesa2:Logcat:1.8.0'
+    implementation 'com.github.hannesa2:Logcat:2.1.1'
     implementation project(':library-rtsp')
 }
