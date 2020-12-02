@@ -44,12 +44,12 @@ dependencies {
     implementation "androidx.appcompat:appcompat:${androidXAppcompatVersion}"
     implementation 'androidx.core:core-ktx:1.3.2'
     implementation 'com.google.android.material:material:1.2.1'
-    implementation 'androidx.constraintlayout:constraintlayout:2.0.2'
+    implementation 'androidx.constraintlayout:constraintlayout:2.0.4'
     implementation 'androidx.lifecycle:lifecycle-extensions:2.2.0'
     implementation "androidx.navigation:navigation-fragment:${androidXNavigationVersion}"
     implementation "androidx.navigation:navigation-ui:${androidXNavigationVersion}"
     implementation "androidx.navigation:navigation-fragment-ktx:${androidXNavigationVersion}"
     implementation "androidx.navigation:navigation-ui-ktx:${androidXNavigationVersion}"
-    implementation 'com.github.hannesa2:Logcat:2.1.1'
+    implementation 'com.github.AppDevNext.Logcat:LogcatCore:2.1.1'
     implementation project(':library-rtsp')
 }

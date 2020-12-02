@@ -65,8 +65,8 @@ public class AacParser {
         int auHeadersLengthBytes = (auHeadersLength + 7) / 8;
 
         headerScratchBytes.reset(auHeadersLengthBytes);
-        packet.readBytes(headerScratchBytes.data, 0, auHeadersLengthBytes);
-        headerScratchBits.reset(headerScratchBytes.data);
+        packet.readBytes(headerScratchBytes.getData(), 0, auHeadersLengthBytes);
+        headerScratchBits.reset(headerScratchBytes.getData());
 
         int bitsAvailable = auHeadersLength - (numBitsAuSize + numBitsAuIndex);
 
@@ -107,7 +107,7 @@ public class AacParser {
     private byte[] handleSingleAacFrame(ParsableByteArray packet) {
         int length = packet.bytesLeft();
         byte[] data = new byte[length];
-        System.arraycopy(packet.data, packet.getPosition(), data,0, data.length);
+        System.arraycopy(packet.getData(), packet.getPosition(), data,0, data.length);
         return data;
     }
 
