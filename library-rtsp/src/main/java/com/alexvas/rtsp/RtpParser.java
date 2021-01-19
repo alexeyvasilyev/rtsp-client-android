@@ -15,7 +15,7 @@ class RtpParser {
     private static final String TAG = RtpParser.class.getSimpleName();
     private static final boolean DEBUG = false;
 
-    private static int RTP_HEADER_SIZE = 12;
+    private final static int RTP_HEADER_SIZE = 12;
 
     public static class RtpHeader {
         public int version;
@@ -29,12 +29,48 @@ class RtpParser {
         public long ssrc;
         public int payloadSize;
 
-        @NonNull
+        // If RTP header found, return 4 bytes of the header
+        private static boolean searchForNextRtpHeader(@NonNull InputStream inputStream, @NonNull byte[] header /*out*/) throws IOException {
+            if (header.length < 4)
+                throw new IOException("Invalid allocated buffer size");
+
+            int bytesRemaining = 100000; // 100 KB max to check
+            boolean foundFirstByte = false;
+            boolean foundSecondByte = false;
+            byte[] oneByte = new byte[1];
+            // Search for {0x24, 0x00}
+            do {
+                if (bytesRemaining-- < 0)
+                    return false;
+                // Read 1 byte
+                NetUtils.readData(inputStream, oneByte, 0, 1);
+                if (foundFirstByte) {
+                    // Found 0x24. Checking for 0x00.
+                    if (oneByte[0] == 0x00)
+                        foundSecondByte = true;
+                    else
+                        foundFirstByte = false;
+                }
+                if (!foundFirstByte && oneByte[0] == 0x24) {
+                    // Found 0x24
+                    foundFirstByte = true;
+                }
+            } while (!foundSecondByte);
+            header[0] = 0x24;
+            header[1] = 0x00;
+            // Read 2 bytes more (packet size)
+            NetUtils.readData(inputStream, header, 2, 2);
+            return true;
+        }
+
+        @Nullable
         private static RtpHeader parseData(@NonNull byte[] header, int packetSize) {
             RtpHeader rtpHeader = new RtpHeader();
             rtpHeader.version = (header[0] & 0xFF) >> 6;
             if (rtpHeader.version != 2) {
-                Log.e("RTP","This is not a RTP packet (" + rtpHeader.version + ")");
+                if (DEBUG)
+                    Log.e(TAG,"Not a RTP packet (" + rtpHeader.version + ")");
+                return null;
             }
 
             // 80 60 40 91 fd ab d4 2a
@@ -48,6 +84,13 @@ class RtpParser {
             rtpHeader.ssrc = (header[7] & 0xFF) + ((header[6] & 0xFF) << 8) + ((header[5] & 0xFF) << 16) + ((header[4] & 0xFF) << 24) & 0xffffffffL;
             rtpHeader.payloadSize = packetSize - RTP_HEADER_SIZE;
             return rtpHeader;
+        }
+
+        private static int getPacketSize(@NonNull byte[] header) {
+            int packetSize = ((header[2] & 0xFF) << 8) | (header[3] & 0xFF);
+            if (DEBUG)
+                Log.d(TAG, "Packet size: " + packetSize);
+            return packetSize;
         }
 
         public void dumpHeader() {
@@ -74,14 +117,24 @@ class RtpParser {
         if (DEBUG && header[0] == 0x24)
             Log.d(TAG, header[1] == 0 ? "RTP packet" : "RTCP packet");
 
-        int packetSize = ((header[2] & 0xFF) << 8) | (header[3] & 0xFF);
+        int packetSize = RtpHeader.getPacketSize(header);
         if (DEBUG)
             Log.d(TAG, "Packet size: " + packetSize);
 
         if (NetUtils.readData(inputStream, header, 0, header.length) == header.length) {
-            return RtpHeader.parseData(header, packetSize);
-        } else {
-            return null;
+            RtpHeader rtpHeader = RtpHeader.parseData(header, packetSize);
+            if (rtpHeader == null) {
+                // Header not found. Possible keep-alive response. Search for another RTP header.
+                boolean foundHeader = RtpHeader.searchForNextRtpHeader(inputStream, header);
+                if (foundHeader) {
+                    packetSize = RtpHeader.getPacketSize(header);
+                    if (NetUtils.readData(inputStream, header, 0, header.length) == header.length)
+                        return RtpHeader.parseData(header, packetSize);
+                }
+            } else {
+                return rtpHeader;
+            }
         }
+        return null;
     }
 }

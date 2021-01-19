@@ -21,6 +21,7 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 //OPTIONS rtsp://10.0.1.145:88/videoSub RTSP/1.0
 //CSeq: 1
@@ -121,6 +122,23 @@ public class RtspClient {
             static final String TAG_DEBUG = TAG + " DBG";
     private static final boolean DEBUG = false;
 
+    public final static int RTSP_CAPABILITY_NONE          = 0;
+    public final static int RTSP_CAPABILITY_OPTIONS       = 1 << 1;
+    public final static int RTSP_CAPABILITY_DESCRIBE      = 1 << 2;
+    public final static int RTSP_CAPABILITY_ANNOUNCE      = 1 << 3;
+    public final static int RTSP_CAPABILITY_SETUP         = 1 << 4;
+    public final static int RTSP_CAPABILITY_PLAY          = 1 << 5;
+    public final static int RTSP_CAPABILITY_RECORD        = 1 << 6;
+    public final static int RTSP_CAPABILITY_PAUSE         = 1 << 7;
+    public final static int RTSP_CAPABILITY_TEARDOWN      = 1 << 8;
+    public final static int RTSP_CAPABILITY_SET_PARAMETER = 1 << 9;
+    public final static int RTSP_CAPABILITY_GET_PARAMETER = 1 << 10;
+    public final static int RTSP_CAPABILITY_REDIRECT      = 1 << 11;
+
+    public static boolean hasCapability(int capability, int capabilitiesMask) {
+        return (capabilitiesMask & capability) != 0;
+    }
+
     public interface RtspClientListener {
         void onRtspConnecting();
         void onRtspConnected(@NonNull SdpInfo sdpInfo);
@@ -129,6 +147,10 @@ public class RtspClient {
         void onRtspDisconnected();
         void onRtspFailedUnauthorized();
         void onRtspFailed(@Nullable String message);
+    }
+
+    private interface RtspClientKeepAliveListener {
+        void onRtspKeepAliveRequested();
     }
 
     public static class SdpInfo {
@@ -192,12 +214,12 @@ public class RtspClient {
     private final @NonNull RtspClientListener listener;
 
 //  private boolean sendOptionsCommand;
-    private boolean requestVideo;
-    private boolean requestAudio;
-    private boolean debug;
-    private @Nullable String username;
-    private @Nullable String password;
-    private @Nullable String userAgent;
+    private final boolean requestVideo;
+    private final boolean requestAudio;
+    private final boolean debug;
+    private final @Nullable String username;
+    private final @Nullable String password;
+    private final @Nullable String userAgent;
 
     private RtspClient(@NonNull RtspClient.Builder builder) {
         rtspSocket = builder.rtspSocket;
@@ -218,13 +240,13 @@ public class RtspClient {
             Log.v(TAG, "execute()");
         listener.onRtspConnecting();
         try {
-            InputStream inputStream = rtspSocket.getInputStream();
-            OutputStream outputStream = debug ?
+            final InputStream inputStream = rtspSocket.getInputStream();
+            final OutputStream outputStream = debug ?
                     new LoggerOutputStream(rtspSocket.getOutputStream()) :
                     new BufferedOutputStream(rtspSocket.getOutputStream());
 
             SdpInfo sdpInfo = new SdpInfo();
-            int cSeq = 0;
+            final AtomicInteger cSeq = new AtomicInteger(0);
             ArrayList<Pair<String, String>> headers;
             int status;
 
@@ -238,9 +260,9 @@ public class RtspClient {
 // RTSP/1.0 200 OK
 // CSeq: 1
 // Public: OPTIONS, DESCRIBE, SETUP, PLAY, GET_PARAMETER, SET_PARAMETER, TEARDOWN
-//            if (sendOptionsCommand) {
+//          if (sendOptionsCommand) {
             checkExitFlag(exitFlag);
-            sendOptionsCommand(outputStream, uriRtsp, ++cSeq, userAgent, authToken);
+            sendOptionsCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, null);
             status = readResponseStatusCode(inputStream);
             headers = readResponseHeaders(inputStream);
             dumpHeaders(headers);
@@ -259,7 +281,7 @@ public class RtspClient {
                     authToken = getDigestAuthHeader(username, password, "OPTIONS", uriRtsp, digestRealmNonce.first, digestRealmNonce.second);
                 }
                 checkExitFlag(exitFlag);
-                sendOptionsCommand(outputStream, uriRtsp, ++cSeq, userAgent, authToken);
+                sendOptionsCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, authToken);
                 status = readResponseStatusCode(inputStream);
                 headers = readResponseHeaders(inputStream);
                 dumpHeaders(headers);
@@ -267,6 +289,7 @@ public class RtspClient {
             if (DEBUG)
                 Log.i(TAG, "OPTIONS status: " + status);
             checkStatusCode(status);
+            final int capabilities = getSupportedCapabilities(headers);
 
 
 // DESCRIBE rtsp://10.0.1.78:8080/video/h264 RTSP/1.0
@@ -292,7 +315,7 @@ public class RtspClient {
 // a=control:trackID=2
             checkExitFlag(exitFlag);
 
-            sendDescribeCommand(outputStream, uriRtsp, ++cSeq, userAgent, authToken);
+            sendDescribeCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, authToken);
             status = readResponseStatusCode(inputStream);
             headers = readResponseHeaders(inputStream);
             dumpHeaders(headers);
@@ -311,7 +334,7 @@ public class RtspClient {
                     authToken = getDigestAuthHeader(username, password, "DESCRIBE", uriRtsp, digestRealmNonce.first, digestRealmNonce.second);
                 }
                 checkExitFlag(exitFlag);
-                sendDescribeCommand(outputStream, uriRtsp, ++cSeq, userAgent, authToken);
+                sendDescribeCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, authToken);
                 status = readResponseStatusCode(inputStream);
                 headers = readResponseHeaders(inputStream);
                 dumpHeaders(headers);
@@ -327,6 +350,10 @@ public class RtspClient {
                 try {
                     List<Pair<String, String>> params = getDescribeParams(content);
                     sdpInfo = getSdpInfoFromDescribeParams(params);
+                    if (!requestVideo)
+                        sdpInfo.videoTrack = null;
+                    if (!requestAudio)
+                        sdpInfo.audioTrack = null;
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -343,6 +370,7 @@ public class RtspClient {
 // Transport: RTP/AVP/TCP;unicast;interleaved=0-1
 // Session: Mzk5MzY2MzUwMTg3NTc2Mzc5NQ;timeout=30
             String session = null;
+            int sessionTimeout = 0;
             for (int i = 0; i < 2; i++) {
                 // i=0 - video track, i=1 - audio track
                 checkExitFlag(exitFlag);
@@ -356,8 +384,21 @@ public class RtspClient {
                         continue;
                     }
                     if (digestRealmNonce != null)
-                        authToken = getDigestAuthHeader(username, password, "SETUP", uriRtspSetup, digestRealmNonce.first, digestRealmNonce.second);
-                    sendSetupCommand(outputStream, uriRtspSetup, ++cSeq, userAgent, authToken, session, (i == 0 ? "0-1" /*video*/ : "2-3" /*audio*/));
+                        authToken = getDigestAuthHeader(
+                                username,
+                                password,
+                                "SETUP",
+                                uriRtspSetup,
+                                digestRealmNonce.first,
+                                digestRealmNonce.second);
+                    sendSetupCommand(
+                            outputStream,
+                            uriRtspSetup,
+                            cSeq.addAndGet(1),
+                            userAgent,
+                            authToken,
+                            session,
+                            (i == 0 ? "0-1" /*video*/ : "2-3" /*audio*/));
                     status = readResponseStatusCode(inputStream);
                     if (DEBUG)
                         Log.i(TAG, "SETUP status: " + status);
@@ -369,9 +410,20 @@ public class RtspClient {
                         // ODgyODg3MjQ1MDczODk3NDk4Nw;timeout=30
                         String[] params = TextUtils.split(session, ";");
                         session = params[0];
+                        // Getting session timeout
+                        if (params.length > 1) {
+                            params = TextUtils.split(params[1], "=");
+                            if (params.length > 1) {
+                                try {
+                                    sessionTimeout = Integer.parseInt(params[1]);
+                                } catch (NumberFormatException e) {
+                                    Log.e(TAG, "Failed to parse RTSP session timeout");
+                                }
+                            }
+                        }
                     }
                     if (DEBUG)
-                        Log.d(TAG, "SETUP session: " + session);
+                        Log.d(TAG, "SETUP session: " + session + ", timeout: " + sessionTimeout);
                     if (TextUtils.isEmpty(session))
                         throw new IOException("Failed to get RTSP session");
                 }
@@ -393,7 +445,7 @@ public class RtspClient {
             checkExitFlag(exitFlag);
             if (digestRealmNonce != null)
                 authToken = getDigestAuthHeader(username, password, "PLAY", uriRtsp /*?*/, digestRealmNonce.first, digestRealmNonce.second);
-            sendPlayCommand(outputStream, uriRtsp, ++cSeq, userAgent, authToken, session);
+            sendPlayCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, authToken, session);
             status = readResponseStatusCode(inputStream);
             if (DEBUG)
                 Log.i(TAG, "PLAY status: " + status);
@@ -404,8 +456,41 @@ public class RtspClient {
             listener.onRtspConnected(sdpInfo);
 
             if (sdpInfo.videoTrack != null) {
-                // Blocking call unless exitFlag set to true or thread.interrupt() called.
-                readRtpData(inputStream, sdpInfo, exitFlag, listener);
+                final String authTokenFinal = authToken;
+                final String sessionFinal = session;
+                RtspClientKeepAliveListener keepAliveListener = new RtspClientKeepAliveListener() {
+                    @Override
+                    public void onRtspKeepAliveRequested() {
+                        try {
+                            //GET_PARAMETER rtsp://10.0.1.155:554/cam/realmonitor?channel=1&subtype=1/ RTSP/1.0
+                            //CSeq: 6
+                            //User-Agent: Lavf58.45.100
+                            //Session: 4066342621205
+                            //Authorization: Digest username="admin", realm="Login to cam", nonce="8fb58500489d60f99a40b43f3c8574ef", uri="rtsp://10.0.1.155:554/cam/realmonitor?channel=1&subtype=1/", response="692a26124a1ee9562135785ace33a23b"
+
+                            //RTSP/1.0 200 OK
+                            //CSeq: 6
+                            //Session: 4066342621205
+                            if (hasCapability(RTSP_CAPABILITY_GET_PARAMETER, capabilities))
+                                sendGetParameterCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, sessionFinal, authTokenFinal);
+                            else
+                                sendOptionsCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, authTokenFinal);
+
+                            // Do not read response right now, since it may contain unread RTP frames.
+                            // RtpHeader.searchForNextRtpHeader will handle that.
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                };
+                // Blocking call unless exitFlag set to true, thread.interrupt() called or connection closed.
+                readRtpData(
+                        inputStream,
+                        sdpInfo,
+                        exitFlag,
+                        listener,
+                        sessionTimeout / 2 * 1000,
+                        keepAliveListener);
             } else {
                 listener.onRtspFailed("No tracks found. RTSP server issue.");
             }
@@ -467,25 +552,34 @@ public class RtspClient {
             @NonNull InputStream inputStream,
             @NonNull SdpInfo sdpInfo,
             @NonNull AtomicBoolean exitFlag,
-            @NonNull RtspClientListener listener)
+            @NonNull RtspClientListener listener,
+            int keepAliveTimeout,
+            @NonNull RtspClientKeepAliveListener keepAliveListener)
     throws IOException {
         byte[] data = new byte[15000]; // Usually not bigger than MTU
 
-        // Read 1000 RTP packets
         final VideoRtpParser videoParser = new VideoRtpParser();
         final AacParser audioParser = (sdpInfo.audioTrack != null ? new AacParser(sdpInfo.audioTrack.mode) : null);
 
         byte[] nalUnitSps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.sps : null);
         byte[] nalUnitPps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.pps : null);
 
+        long keepAliveSent = System.currentTimeMillis();
+
         while (!exitFlag.get()) {
-//        for (int i = 0; i < numRtpFrames; i++) {
-//          Log.i(TAG, "RTP packet #" + i);
             RtpParser.RtpHeader header = RtpParser.readHeader(inputStream);
-            if (header == null)
-                return;
+            if (header == null) {
+                throw new IOException("No RTP frames found");
+            }
 //          header.dumpHeader();
             NetUtils.readData(inputStream, data, 0, header.payloadSize);
+
+            // Check if keep-alive should be sent
+            long l = System.currentTimeMillis();
+            if (keepAliveTimeout > 0 && l - keepAliveSent > keepAliveTimeout) {
+                keepAliveSent = l;
+                keepAliveListener.onRtspKeepAliveRequested();
+            }
 
             // Video
             if (sdpInfo.videoTrack != null && header.payloadType == sdpInfo.videoTrack.payloadType) {
@@ -550,6 +644,27 @@ public class RtspClient {
         }
     }
 
+    private static void sendSimpleCommand(
+            @NonNull String command,
+            @NonNull OutputStream outputStream,
+            @NonNull String request,
+            int cSeq,
+            @Nullable String userAgent,
+            @Nullable String session,
+            @Nullable String authToken)
+    throws IOException {
+        outputStream.write((command + " " + request + " RTSP/1.0" + CRLF).getBytes());
+        if (authToken != null)
+            outputStream.write(("Authorization: " + authToken + CRLF).getBytes());
+        outputStream.write(("CSeq: " + cSeq + CRLF).getBytes());
+        if (userAgent != null)
+            outputStream.write(("User-Agent: " + userAgent + CRLF).getBytes());
+        if (session != null)
+            outputStream.write(("Session: " + session + CRLF).getBytes());
+        outputStream.write(CRLF.getBytes());
+        outputStream.flush();
+    }
+
     private static void sendOptionsCommand(
             @NonNull OutputStream outputStream,
             @NonNull String request,
@@ -559,14 +674,20 @@ public class RtspClient {
     throws IOException {
         if (DEBUG)
             Log.v(TAG, "sendOptionsCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
-        outputStream.write(("OPTIONS " + request + " RTSP/1.0" + CRLF).getBytes());
-        if (authToken != null)
-            outputStream.write(("Authorization: " + authToken + CRLF).getBytes());
-        outputStream.write(("CSeq: " + cSeq + CRLF).getBytes());
-        if (userAgent != null)
-            outputStream.write(("User-Agent: " + userAgent + CRLF).getBytes());
-        outputStream.write(CRLF.getBytes());
-        outputStream.flush();
+        sendSimpleCommand("OPTIONS", outputStream, request, cSeq, userAgent, null, authToken);
+    }
+
+    private static void sendGetParameterCommand(
+            @NonNull OutputStream outputStream,
+            @NonNull String request,
+            int cSeq,
+            @Nullable String userAgent,
+            @Nullable String session,
+            @Nullable String authToken)
+            throws IOException {
+        if (DEBUG)
+            Log.v(TAG, "sendGetParameterCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
+        sendSimpleCommand("GET_PARAMETER", outputStream, request, cSeq, userAgent, session, authToken);
     }
 
     private static void sendDescribeCommand(
@@ -623,7 +744,7 @@ public class RtspClient {
     throws IOException {
         if (DEBUG)
             Log.v(TAG, "sendPlayCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
-        outputStream.write(("PLAY " + request + " RTSP/1.0" + CRLF).getBytes());
+        outputStream.write(("PLAY " + request + "/ RTSP/1.0" + CRLF).getBytes());
         outputStream.write(("Range: npt=0.000-" + CRLF).getBytes());
         if (authToken != null)
             outputStream.write(("Authorization: " + authToken + CRLF).getBytes());
@@ -941,6 +1062,34 @@ public class RtspClient {
             }
         }
         return -1;
+    }
+
+    private static int getSupportedCapabilities(@NonNull ArrayList<Pair<String, String>> headers) {
+        for (Pair<String, String> head: headers) {
+            String h = head.first.toLowerCase();
+            // Public: OPTIONS, DESCRIBE, SETUP, PLAY, GET_PARAMETER, SET_PARAMETER, TEARDOWN
+            if ("public".equals(h)) {
+                int mask = 0;
+                String[] tokens = TextUtils.split(head.second.toLowerCase(), ",");
+                for (String token: tokens) {
+                    switch (token.trim()) {
+                        case "options":       mask |= RTSP_CAPABILITY_OPTIONS; break;
+                        case "describe":      mask |= RTSP_CAPABILITY_DESCRIBE; break;
+                        case "announce":      mask |= RTSP_CAPABILITY_ANNOUNCE; break;
+                        case "setup":         mask |= RTSP_CAPABILITY_SETUP; break;
+                        case "play":          mask |= RTSP_CAPABILITY_PLAY; break;
+                        case "record":        mask |= RTSP_CAPABILITY_RECORD; break;
+                        case "pause":         mask |= RTSP_CAPABILITY_PAUSE; break;
+                        case "teardown":      mask |= RTSP_CAPABILITY_TEARDOWN; break;
+                        case "set_parameter": mask |= RTSP_CAPABILITY_SET_PARAMETER; break;
+                        case "get_parameter": mask |= RTSP_CAPABILITY_GET_PARAMETER; break;
+                        case "redirect":      mask |= RTSP_CAPABILITY_REDIRECT; break;
+                    }
+                }
+                return mask;
+            }
+        }
+        return RTSP_CAPABILITY_NONE;
     }
 
     @Nullable
