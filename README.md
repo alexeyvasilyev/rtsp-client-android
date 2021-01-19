@@ -1,6 +1,8 @@
 # rtsp-client-android
 Lightweight RTSP client library for Android written in Java.
 
+![Screenshot](docs/images/rtsp-demo-app.png?raw=true "Screenshot")
+
 ## Features:
 - Android min API 21.
 - RTSP/RTSPS over TCP.
@@ -8,6 +10,7 @@ Lightweight RTSP client library for Android written in Java.
 - Audio AAC LC only.
 - Basic/Digest authentification.
 - Supports majority of RTSP IP cameras.
+
 
 ## Compile
 
@@ -20,7 +23,7 @@ allprojects {
   }
 }
 dependencies {
-  implementation 'com.github.alexeyvasilyev:rtsp-client-android:1.2.7'
+  implementation 'com.github.alexeyvasilyev:rtsp-client-android:1.2.8'
 }
 ```
 
