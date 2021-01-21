@@ -95,7 +95,17 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
 
                 override fun onRtspConnected(sdpInfo: RtspClient.SdpInfo) {
                     if (DEBUG) Log.v(TAG, "onRtspConnected()")
-                    Handler(Looper.getMainLooper()).post { textStatus?.text = "RTSP connected" }
+                    Handler(Looper.getMainLooper()).post {
+                        var s = ""
+                        if (sdpInfo.videoTrack != null)
+                            s = "video"
+                        if (sdpInfo.audioTrack != null) {
+                            if (s.length > 0)
+                                s += ", "
+                            s += "audio"
+                        }
+                        textStatus?.text = "RTSP connected ($s)"
+                    }
                     if (sdpInfo.videoTrack != null) {
                         videoFrameQueue.clear()
                         when (sdpInfo.videoTrack?.videoCodec) {

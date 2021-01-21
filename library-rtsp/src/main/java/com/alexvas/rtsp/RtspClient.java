@@ -184,10 +184,11 @@ public class RtspClient {
 //      public @Nullable byte[] sei; // H.265 only
     }
 
+    public static final int AUDIO_CODEC_UNKNOWN = -1;
     public static final int AUDIO_CODEC_AAC = 0;
 
     public static class AudioTrack extends Track {
-        public int audioCodec = AUDIO_CODEC_AAC;
+        public int audioCodec = AUDIO_CODEC_UNKNOWN;
         public int sampleRateHz; // 16000, 8000
         public int channels; // 1 - mono, 2 - stereo
         public String mode; // AAC-lbr, AAC-hbr
@@ -354,6 +355,11 @@ public class RtspClient {
                         sdpInfo.videoTrack = null;
                     if (!requestAudio)
                         sdpInfo.audioTrack = null;
+                    // Only AAC supported
+                    if (sdpInfo.audioTrack != null && sdpInfo.audioTrack.audioCodec != AUDIO_CODEC_AAC) {
+                        Log.e(TAG_DEBUG, "Unknown RTSP audio codec specified");
+                        sdpInfo.audioTrack = null;
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -455,7 +461,7 @@ public class RtspClient {
 
             listener.onRtspConnected(sdpInfo);
 
-            if (sdpInfo.videoTrack != null) {
+            if (sdpInfo.videoTrack != null ||  sdpInfo.audioTrack != null) {
                 final String authTokenFinal = authToken;
                 final String sessionFinal = session;
                 RtspClientKeepAliveListener keepAliveListener = new RtspClientKeepAliveListener() {
@@ -471,6 +477,8 @@ public class RtspClient {
                             //RTSP/1.0 200 OK
                             //CSeq: 6
                             //Session: 4066342621205
+                            if (debug)
+                                Log.d(TAG_DEBUG, "Sending keep-alive");
                             if (hasCapability(RTSP_CAPABILITY_GET_PARAMETER, capabilities))
                                 sendGetParameterCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, sessionFinal, authTokenFinal);
                             else
@@ -559,7 +567,9 @@ public class RtspClient {
         byte[] data = new byte[15000]; // Usually not bigger than MTU
 
         final VideoRtpParser videoParser = new VideoRtpParser();
-        final AacParser audioParser = (sdpInfo.audioTrack != null ? new AacParser(sdpInfo.audioTrack.mode) : null);
+        final AacParser audioParser = (sdpInfo.audioTrack != null && sdpInfo.audioTrack.audioCodec == AUDIO_CODEC_AAC ?
+                new AacParser(sdpInfo.audioTrack.mode) :
+                null);
 
         byte[] nalUnitSps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.sps : null);
         byte[] nalUnitPps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.pps : null);
@@ -569,7 +579,8 @@ public class RtspClient {
         while (!exitFlag.get()) {
             RtpParser.RtpHeader header = RtpParser.readHeader(inputStream);
             if (header == null) {
-                throw new IOException("No RTP frames found");
+                continue;
+//                throw new IOException("No RTP frames found");
             }
 //          header.dumpHeader();
             NetUtils.readData(inputStream, data, 0, header.payloadSize);
@@ -764,7 +775,6 @@ public class RtspClient {
         while (!TextUtils.isEmpty(line = readLine(inputStream))) {
             if (debug)
                 Log.d(TAG_DEBUG, "" + line);
-            //noinspection ConstantConditions
             int indexRtsp = line.indexOf("RTSP/1.0 "); // 9 characters
             if (indexRtsp >= 0) {
                 int indexCode = line.indexOf(' ', indexRtsp + 9);
@@ -860,6 +870,7 @@ public class RtspClient {
 
                         // a=rtpmap:96 H264/90000
                         // a=rtpmap:97 mpeg4-generic/16000/1
+                        // a=rtpmap:97 MPEG4-GENERIC/16000
                         // a=rtpmap:97 G726-32/8000
                         } else if (param.second.startsWith("rtpmap:")) {
                             // Video
@@ -888,6 +899,7 @@ public class RtspClient {
                                             track.audioCodec = AUDIO_CODEC_AAC;
                                         } else {
                                             Log.w(TAG, "Unknown audio codec \"" + values[0] + "\"");
+                                            track.audioCodec = AUDIO_CODEC_UNKNOWN;
                                         }
                                         track.sampleRateHz = Integer.parseInt(values[1]);
                                         // If no channels specified, use mono, e.g. "a=rtpmap:97 MPEG4-GENERIC/8000"
