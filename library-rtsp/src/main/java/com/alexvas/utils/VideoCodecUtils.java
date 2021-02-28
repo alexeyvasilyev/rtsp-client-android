@@ -13,54 +13,54 @@ public final class VideoCodecUtils {
     private static final String TAG = VideoCodecUtils.class.getSimpleName();
     private static final boolean DEBUG = false;
 
-    public static final int NAL_SLICE           = 1;
-    public static final int NAL_DPA             = 2;
-    public static final int NAL_DPB             = 3;
-    public static final int NAL_DPC             = 4;
-    public static final int NAL_IDR_SLICE       = 5;
-    public static final int NAL_SEI             = 6;
-    public static final int NAL_SPS             = 7;
-    public static final int NAL_PPS             = 8;
-    public static final int NAL_AUD             = 9;
-    public static final int NAL_END_SEQUENCE    = 10;
-    public static final int NAL_END_STREAM      = 11;
-    public static final int NAL_FILLER_DATA     = 12;
-    public static final int NAL_SPS_EXT         = 13;
-    public static final int NAL_AUXILIARY_SLICE = 19;
-    public static final int NAL_STAP_A          = 24; // https://tools.ietf.org/html/rfc3984 5.7.1
-    public static final int NAL_STAP_B          = 25; // 5.7.1
-    public static final int NAL_MTAP16          = 26; // 5.7.2
-    public static final int NAL_MTAP24          = 27; // 5.7.2
-    public static final int NAL_FU_A            = 28; // 5.8 fragmented unit
-    public static final int NAL_FU_B            = 29; // 5.8
+    public static final byte NAL_SLICE           = 1;
+    public static final byte NAL_DPA             = 2;
+    public static final byte NAL_DPB             = 3;
+    public static final byte NAL_DPC             = 4;
+    public static final byte NAL_IDR_SLICE       = 5;
+    public static final byte NAL_SEI             = 6;
+    public static final byte NAL_SPS             = 7;
+    public static final byte NAL_PPS             = 8;
+    public static final byte NAL_AUD             = 9;
+    public static final byte NAL_END_SEQUENCE    = 10;
+    public static final byte NAL_END_STREAM      = 11;
+    public static final byte NAL_FILLER_DATA     = 12;
+    public static final byte NAL_SPS_EXT         = 13;
+    public static final byte NAL_AUXILIARY_SLICE = 19;
+    public static final byte NAL_STAP_A          = 24; // https://tools.ietf.org/html/rfc3984 5.7.1
+    public static final byte NAL_STAP_B          = 25; // 5.7.1
+    public static final byte NAL_MTAP16          = 26; // 5.7.2
+    public static final byte NAL_MTAP24          = 27; // 5.7.2
+    public static final byte NAL_FU_A            = 28; // 5.8 fragmented unit
+    public static final byte NAL_FU_B            = 29; // 5.8
 //  public static final int NAL_FF_IGNORE       = 0xff0f001;
 
     // Table 7-3: NAL unit type codes
-    public static final int H265_NAL_TRAIL_N    = 0;
-    public static final int H265_NAL_TRAIL_R    = 1;
-    public static final int H265_NAL_TSA_N      = 2;
-    public static final int H265_NAL_TSA_R      = 3;
-    public static final int H265_NAL_STSA_N     = 4;
-    public static final int H265_NAL_STSA_R     = 5;
-    public static final int H265_NAL_RADL_N     = 6;
-    public static final int H265_NAL_RADL_R     = 7;
-    public static final int H265_NAL_RASL_N     = 8;
-    public static final int H265_NAL_RASL_R     = 9;
-    public static final int H265_NAL_BLA_W_LP   = 16;
-    public static final int H265_NAL_BLA_W_RADL = 17;
-    public static final int H265_NAL_BLA_N_LP   = 18;
-    public static final int H265_NAL_IDR_W_RADL = 19;
-    public static final int H265_NAL_IDR_N_LP   = 20;
-    public static final int H265_NAL_CRA_NUT    = 21;
-    public static final int H265_NAL_VPS        = 32;
-    public static final int H265_NAL_SPS        = 33;
-    public static final int H265_NAL_PPS        = 34;
-    public static final int H265_NAL_AUD        = 35;
-    public static final int H265_NAL_EOS_NUT    = 36;
-    public static final int H265_NAL_EOB_NUT    = 37;
-    public static final int H265_NAL_FD_NUT     = 38;
-    public static final int H265_NAL_SEI_PREFIX = 39;
-    public static final int H265_NAL_SEI_SUFFIX = 40;
+    public static final byte H265_NAL_TRAIL_N    = 0;
+    public static final byte H265_NAL_TRAIL_R    = 1;
+    public static final byte H265_NAL_TSA_N      = 2;
+    public static final byte H265_NAL_TSA_R      = 3;
+    public static final byte H265_NAL_STSA_N     = 4;
+    public static final byte H265_NAL_STSA_R     = 5;
+    public static final byte H265_NAL_RADL_N     = 6;
+    public static final byte H265_NAL_RADL_R     = 7;
+    public static final byte H265_NAL_RASL_N     = 8;
+    public static final byte H265_NAL_RASL_R     = 9;
+    public static final byte H265_NAL_BLA_W_LP   = 16;
+    public static final byte H265_NAL_BLA_W_RADL = 17;
+    public static final byte H265_NAL_BLA_N_LP   = 18;
+    public static final byte H265_NAL_IDR_W_RADL = 19;
+    public static final byte H265_NAL_IDR_N_LP   = 20;
+    public static final byte H265_NAL_CRA_NUT    = 21;
+    public static final byte H265_NAL_VPS        = 32;
+    public static final byte H265_NAL_SPS        = 33;
+    public static final byte H265_NAL_PPS        = 34;
+    public static final byte H265_NAL_AUD        = 35;
+    public static final byte H265_NAL_EOS_NUT    = 36;
+    public static final byte H265_NAL_EOB_NUT    = 37;
+    public static final byte H265_NAL_FD_NUT     = 38;
+    public static final byte H265_NAL_SEI_PREFIX = 39;
+    public static final byte H265_NAL_SEI_SUFFIX = 40;
 
     private static final byte[] NAL_PREFIX1 = { 0x00, 0x00, 0x00, 0x01 };
     private static final byte[] NAL_PREFIX2 = { 0x00, 0x00, 0x01 };
@@ -309,10 +309,10 @@ public final class VideoCodecUtils {
 //    }
 
     public static class NalUnit {
-        public final int type;
+        public final byte type;
         public final int offset;
         public final int length;
-        private NalUnit(int type, int offset, int length) {
+        private NalUnit(byte type, int offset, int length) {
             this.type = type;
             this.offset = offset;
             this.length = length;
@@ -560,7 +560,7 @@ public final class VideoCodecUtils {
 //    }
 
     @NonNull
-    public static String getH264NalUnitTypeString(int nalUnitType) {
+    public static String getH264NalUnitTypeString(byte nalUnitType) {
         switch (nalUnitType) {
             case NAL_SLICE:           return "NAL_SLICE";
             case NAL_DPA:             return "NAL_DPA";
@@ -587,7 +587,7 @@ public final class VideoCodecUtils {
     }
 
 //    @NonNull
-//    public static String getH265NalUnitTypeString(int nalUnitType) {
+//    public static String getH265NalUnitTypeString(byte nalUnitType) {
 //        switch (nalUnitType) {
 //            case H265_NAL_TRAIL_N:    return "NAL_TRAIL_N";
 //            case H265_NAL_TRAIL_R:    return "NAL_TRAIL_R";
