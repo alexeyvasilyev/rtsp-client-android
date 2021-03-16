@@ -8,16 +8,17 @@ class AudioDecodeThread (
         private val mimeType: String,
         private val sampleRate: Int,
         private val channelCount: Int,
+        private val codecConfig: ByteArray?,
         private val audioFrameQueue: FrameQueue) : Thread() {
 
     private val TAG: String = AudioDecodeThread::class.java.simpleName
     private val DEBUG = true
 
     companion object {
-        fun getAacDecoderConfigData(sampleRate: Int, channels: Int): ByteArray {
+        fun getAacDecoderConfigData(audioProfile: Int, sampleRate: Int, channels: Int): ByteArray {
             // AOT_LC = 2
             // 0001 0000 0000 0000
-            var extraDataAac = 2 shl 11
+            var extraDataAac = audioProfile shl 11
             // Sample rate
             when (sampleRate) {
                 7350 -> extraDataAac = extraDataAac or (0xC shl 7)
@@ -50,7 +51,7 @@ class AudioDecodeThread (
         val decoder = MediaCodec.createDecoderByType(mimeType)
         val format = MediaFormat.createAudioFormat(mimeType, sampleRate, channelCount)
 
-        val csd0 = getAacDecoderConfigData(sampleRate, channelCount)
+        val csd0 = codecConfig ?: getAacDecoderConfigData(MediaCodecInfo.CodecProfileLevel.AACObjectLC, sampleRate, channelCount)
         val bb = ByteBuffer.wrap(csd0)
         format.setByteBuffer("csd-0", bb)
         format.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
@@ -59,7 +60,9 @@ class AudioDecodeThread (
         decoder.start()
 
         // Creating audio playback device
-        val bufferSize = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
+        val outChannel = if (channelCount > 1) AudioFormat.CHANNEL_OUT_STEREO else AudioFormat.CHANNEL_OUT_MONO
+        val outAudio = AudioFormat.ENCODING_PCM_16BIT
+        val bufferSize = AudioTrack.getMinBufferSize(sampleRate, outChannel, outAudio)
 //      Log.i(TAG, "sampleRate: $sampleRate, bufferSize: $bufferSize".format(sampleRate, bufferSize))
         val audioTrack = AudioTrack(
                 AudioAttributes.Builder()
@@ -67,8 +70,8 @@ class AudioDecodeThread (
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                         .build(),
                 AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .setEncoding(outAudio)
+                        .setChannelMask(outChannel)
                         .setSampleRate(sampleRate)
                         .build(),
                 bufferSize,
@@ -100,9 +103,11 @@ class AudioDecodeThread (
                     e.printStackTrace()
                 }
             }
+//            Log.i(TAG, "inIndex: ${inIndex}")
 
             try {
                 val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000)
+//                Log.w(TAG, "outIndex: ${outIndex}")
                 when (outIndex) {
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: " + decoder.outputFormat)
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
@@ -121,7 +126,7 @@ class AudioDecodeThread (
                         }
                     }
                 }
-            } catch (e: java.lang.Exception) {
+            } catch (e: Exception) {
                 e.printStackTrace()
             }
 

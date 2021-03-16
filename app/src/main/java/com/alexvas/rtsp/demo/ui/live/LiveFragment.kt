@@ -46,6 +46,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
     private var audioMimeType: String = ""
     private var audioSampleRate: Int = 0
     private var audioChannelCount: Int = 0
+    private var audioCodecConfig: ByteArray? = null
 
     fun onRtspClientStarted() {
         if (DEBUG) Log.v(TAG, "onRtspClientStarted()")
@@ -72,7 +73,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
         }
         if (audioMimeType.isNotEmpty() && checkAudio!!.isChecked) {
             Log.i(TAG, "Starting audio decoder with mime type \"$audioMimeType\"")
-            audioDecodeThread = AudioDecodeThread(audioMimeType, audioSampleRate, audioChannelCount, audioFrameQueue)
+            audioDecodeThread = AudioDecodeThread(audioMimeType, audioSampleRate, audioChannelCount, audioCodecConfig, audioFrameQueue)
             audioDecodeThread?.start()
         }
     }
@@ -134,6 +135,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                         }
                         audioSampleRate = sdpInfo.audioTrack?.sampleRateHz!!
                         audioChannelCount = sdpInfo.audioTrack?.channels!!
+                        audioCodecConfig = sdpInfo.audioTrack?.config
                     }
                     onRtspClientConnected()
                 }
@@ -163,12 +165,14 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                         }
                         Log.i(TAG, "NALs ($numNals): $textNals")
                     }
-                    videoFrameQueue.push(FrameQueue.Frame(data, offset, length, timestamp))
+                    if (length > 0)
+                        videoFrameQueue.push(FrameQueue.Frame(data, offset, length, timestamp))
                 }
 
                 override fun onRtspAudioSampleReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
                     if (DEBUG) Log.v(TAG, "onRtspAudioSampleReceived(length=$length, timestamp=$timestamp)")
-                    audioFrameQueue.push(FrameQueue.Frame(data, offset, length, timestamp))
+                    if (length > 0)
+                        audioFrameQueue.push(FrameQueue.Frame(data, offset, length, timestamp))
                 }
 
                 override fun onRtspConnecting() {

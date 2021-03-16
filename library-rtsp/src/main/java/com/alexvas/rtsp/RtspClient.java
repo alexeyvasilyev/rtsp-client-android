@@ -15,6 +15,7 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -192,6 +193,7 @@ public class RtspClient {
         public int sampleRateHz; // 16000, 8000
         public int channels; // 1 - mono, 2 - stereo
         public String mode; // AAC-lbr, AAC-hbr
+        public @Nullable byte[] config; // config=1210fff15081ffdffc
     }
 
     private static final String CRLF = "\r\n";
@@ -859,6 +861,7 @@ public class RtspClient {
                         // a=fmtp:97 streamtype=5; profile-level-id=15; mode=AAC-hbr; config=1408; sizeLength=13; indexLength=3; indexDeltaLength=3; profile=1; bitrate=32000;
                         // a=fmtp:97 streamtype=5;profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1408
                         // a=fmtp:96 streamtype=5; profile-level-id=14; mode=AAC-lbr; config=1388; sizeLength=6; indexLength=2; indexDeltaLength=2; constantDuration=1024; maxDisplacement=5
+                        // a=fmtp:96 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1210fff15081ffdffc
                         } else if (param.second.startsWith("fmtp:")) {
                             // Video
                             if (currentTrack instanceof VideoTrack) {
@@ -872,6 +875,7 @@ public class RtspClient {
                         // a=rtpmap:97 mpeg4-generic/16000/1
                         // a=rtpmap:97 MPEG4-GENERIC/16000
                         // a=rtpmap:97 G726-32/8000
+                        // a=rtpmap:96 mpeg4-generic/44100/2
                         } else if (param.second.startsWith("rtpmap:")) {
                             // Video
                             if (currentTrack instanceof VideoTrack) {
@@ -1021,7 +1025,7 @@ public class RtspClient {
         List<Pair<String, String>> params = getSdpAParams(param);
         if (params != null) {
             for (Pair<String, String> pair: params) {
-                switch (pair.first) {
+                switch (pair.first.toLowerCase()) {
                     case "sprop-parameter-sets":
                         {
                             String[] paramsSpsPps = TextUtils.split(pair.second, ",");
@@ -1051,14 +1055,22 @@ public class RtspClient {
         }
     }
 
+    @NonNull
+    private static byte[] getBytesFromHexString(@NonNull String config) {
+        // "1210fff1" -> [12, 10, ff, f1]
+        return new BigInteger(config ,16).toByteArray();
+    }
+
     private static void updateAudioTrackFromDescribeParam(@NonNull AudioTrack audioTrack, @NonNull Pair<String, String> param) {
         // a=fmtp:96 streamtype=5; profile-level-id=14; mode=AAC-lbr; config=1388; sizeLength=6; indexLength=2; indexDeltaLength=2; constantDuration=1024; maxDisplacement=5
         // a=fmtp:97 streamtype=5;profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1408
+        // a=fmtp:96 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1210fff15081ffdffc
         List<Pair<String, String>> params = getSdpAParams(param);
-            if (params != null) {
+        if (params != null) {
             for (Pair<String, String> pair: params) {
-                switch (pair.first) {
+                switch (pair.first.toLowerCase()) {
                     case "mode": audioTrack.mode = pair.second; break;
+                    case "config": audioTrack.config = getBytesFromHexString(pair.second); break;
                 }
             }
         }
