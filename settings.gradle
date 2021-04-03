@@ -1,2 +1,2 @@
-include ':library-rtsp'
+include ':library-client-rtsp'
 include ':app'

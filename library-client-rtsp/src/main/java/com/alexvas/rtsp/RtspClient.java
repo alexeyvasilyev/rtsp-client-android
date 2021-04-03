@@ -566,7 +566,7 @@ public class RtspClient {
             int keepAliveTimeout,
             @NonNull RtspClientKeepAliveListener keepAliveListener)
     throws IOException {
-        byte[] data = new byte[15000]; // Usually not bigger than MTU
+        byte[] data = new byte[0]; // Usually not bigger than MTU = 15KB
 
         final VideoRtpParser videoParser = new VideoRtpParser();
         final AacParser audioParser = (sdpInfo.audioTrack != null && sdpInfo.audioTrack.audioCodec == AUDIO_CODEC_AAC ?
@@ -585,6 +585,9 @@ public class RtspClient {
 //                throw new IOException("No RTP frames found");
             }
 //          header.dumpHeader();
+            if (header.payloadSize > data.length)
+                data = new byte[header.payloadSize];
+
             NetUtils.readData(inputStream, data, 0, header.payloadSize);
 
             // Check if keep-alive should be sent
