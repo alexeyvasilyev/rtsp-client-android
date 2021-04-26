@@ -1,6 +1,8 @@
 # rtsp-client-android
 Lightweight RTSP client library for Android written in Java.
 
+[![Release](https://jitpack.io/v/alexeyvasilyev/rtsp-client-android.svg)](https://jitpack.io/#alexeyvasilyev/rtsp-client-android)
+
 ![Screenshot](docs/images/rtsp-demo-app.png?raw=true "Screenshot")
 
 ## Features:
@@ -11,6 +13,12 @@ Lightweight RTSP client library for Android written in Java.
 - Basic/Digest authentification.
 - Supports majority of RTSP IP cameras.
 
+
+## Permissions:
+
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+```
 
 ## Compile
 
