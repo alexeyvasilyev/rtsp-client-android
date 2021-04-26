@@ -760,7 +760,7 @@ public class RtspClient {
     throws IOException {
         if (DEBUG)
             Log.v(TAG, "sendPlayCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
-        outputStream.write(("PLAY " + request + "/ RTSP/1.0" + CRLF).getBytes());
+        outputStream.write(("PLAY " + request + " RTSP/1.0" + CRLF).getBytes());
         outputStream.write(("Range: npt=0.000-" + CRLF).getBytes());
         if (authToken != null)
             outputStream.write(("Authorization: " + authToken + CRLF).getBytes());
