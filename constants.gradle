@@ -7,7 +7,7 @@ project.ext {
     releaseVersionCode = 133
 
     androidXAnnotationVersion = '1.2.0'
-    androidXAppcompatVersion = '1.2.0'
+    androidXAppcompatVersion = '1.3.0'
     androidXNavigationVersion = '2.3.5'
-    exoplayerVersion = '2.13.3'
+    exoplayerVersion = '2.14.0'
 }
