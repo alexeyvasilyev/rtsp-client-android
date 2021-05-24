@@ -466,31 +466,28 @@ public class RtspClient {
             if (sdpInfo.videoTrack != null ||  sdpInfo.audioTrack != null) {
                 final String authTokenFinal = authToken;
                 final String sessionFinal = session;
-                RtspClientKeepAliveListener keepAliveListener = new RtspClientKeepAliveListener() {
-                    @Override
-                    public void onRtspKeepAliveRequested() {
-                        try {
-                            //GET_PARAMETER rtsp://10.0.1.155:554/cam/realmonitor?channel=1&subtype=1/ RTSP/1.0
-                            //CSeq: 6
-                            //User-Agent: Lavf58.45.100
-                            //Session: 4066342621205
-                            //Authorization: Digest username="admin", realm="Login to cam", nonce="8fb58500489d60f99a40b43f3c8574ef", uri="rtsp://10.0.1.155:554/cam/realmonitor?channel=1&subtype=1/", response="692a26124a1ee9562135785ace33a23b"
+                RtspClientKeepAliveListener keepAliveListener = () -> {
+                    try {
+                        //GET_PARAMETER rtsp://10.0.1.155:554/cam/realmonitor?channel=1&subtype=1/ RTSP/1.0
+                        //CSeq: 6
+                        //User-Agent: Lavf58.45.100
+                        //Session: 4066342621205
+                        //Authorization: Digest username="admin", realm="Login to cam", nonce="8fb58500489d60f99a40b43f3c8574ef", uri="rtsp://10.0.1.155:554/cam/realmonitor?channel=1&subtype=1/", response="692a26124a1ee9562135785ace33a23b"
 
-                            //RTSP/1.0 200 OK
-                            //CSeq: 6
-                            //Session: 4066342621205
-                            if (debug)
-                                Log.d(TAG_DEBUG, "Sending keep-alive");
-                            if (hasCapability(RTSP_CAPABILITY_GET_PARAMETER, capabilities))
-                                sendGetParameterCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, sessionFinal, authTokenFinal);
-                            else
-                                sendOptionsCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, authTokenFinal);
+                        //RTSP/1.0 200 OK
+                        //CSeq: 6
+                        //Session: 4066342621205
+                        if (debug)
+                            Log.d(TAG_DEBUG, "Sending keep-alive");
+                        if (hasCapability(RTSP_CAPABILITY_GET_PARAMETER, capabilities))
+                            sendGetParameterCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, sessionFinal, authTokenFinal);
+                        else
+                            sendOptionsCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, authTokenFinal);
 
-                            // Do not read response right now, since it may contain unread RTP frames.
-                            // RtpHeader.searchForNextRtpHeader will handle that.
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
+                        // Do not read response right now, since it may contain unread RTP frames.
+                        // RtpHeader.searchForNextRtpHeader will handle that.
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
                 };
                 // Blocking call unless exitFlag set to true, thread.interrupt() called or connection closed.
@@ -777,7 +774,7 @@ public class RtspClient {
 //        if (debug)
 //            Log.d(TAG_DEBUG, "" + line);
         String line;
-        while (!TextUtils.isEmpty(line = readLine(inputStream))) {
+        while (!exitFlag.get() && (line = readLine(inputStream)) != null) {
             if (debug)
                 Log.d(TAG_DEBUG, "" + line);
             int indexRtsp = line.indexOf("RTSP/1.0 "); // 9 characters
@@ -785,7 +782,10 @@ public class RtspClient {
                 int indexCode = line.indexOf(' ', indexRtsp + 9);
                 String code = line.substring(indexRtsp + 9, indexCode);
                 try {
-                    return Integer.parseInt(code);
+                    int statusCode = Integer.parseInt(code);
+                    if (debug)
+                        Log.d(TAG_DEBUG, "Status code: " + statusCode);
+                    return statusCode;
                 } catch (NumberFormatException e) {
                     // Does not fulfill standard "RTSP/1.1 200 Ok" token
                     // Continue search for
@@ -793,7 +793,7 @@ public class RtspClient {
             }
         }
         if (debug)
-            Log.d(TAG_DEBUG, "" + line);
+            Log.w(TAG_DEBUG, "Could not obtain status code");
         return -1;
     }
 
@@ -801,21 +801,16 @@ public class RtspClient {
     private ArrayList<Pair<String, String>> readResponseHeaders(@NonNull InputStream inputStream) throws IOException {
         ArrayList<Pair<String, String>> headers = new ArrayList<>();
         String line;
-        while (true) {
-            line = readLine(inputStream);
-            if (!TextUtils.isEmpty(line)) {
-                if (debug)
-                    Log.d(TAG_DEBUG, "" + line);
-                if (CRLF.equals(line)) {
-                    return headers;
-                } else {
-                    String[] pairs = TextUtils.split(line, ":");
-                    if (pairs.length == 2) {
-                        headers.add(Pair.create(pairs[0].trim(), pairs[1].trim()));
-                    }
-                }
+        while (!exitFlag.get() && !TextUtils.isEmpty(line = readLine(inputStream))) {
+            if (debug)
+                Log.d(TAG_DEBUG, "" + line);
+            if (CRLF.equals(line)) {
+                return headers;
             } else {
-                break;
+                String[] pairs = TextUtils.split(line, ":");
+                if (pairs.length == 2) {
+                    headers.add(Pair.create(pairs[0].trim(), pairs[1].trim()));
+                }
             }
         }
         return headers;
