@@ -14,13 +14,14 @@ import androidx.lifecycle.ViewModelProvider
 import com.alexvas.rtsp.RtspClient
 import com.alexvas.rtsp.demo.R
 import com.alexvas.rtsp.demo.decode.AudioDecodeThread
-import com.alexvas.rtsp.demo.decode.VideoDecodeThread
 import com.alexvas.rtsp.demo.decode.FrameQueue
+import com.alexvas.rtsp.demo.decode.VideoDecodeThread
 import com.alexvas.utils.NetUtils
 import com.alexvas.utils.VideoCodecUtils
 import com.alexvas.utils.VideoCodecUtils.NalUnit
 import java.net.Socket
 import java.util.concurrent.atomic.AtomicBoolean
+
 
 private const val DEFAULT_RTSP_PORT = 554
 private val TAG: String = LiveFragment::class.java.simpleName
@@ -41,7 +42,9 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
     private var surfaceHeight: Int = 1080
     private var checkVideo: CheckBox? = null
     private var checkAudio: CheckBox? = null
+    private var checkDebug: CheckBox? = null
     private var textStatus: TextView? = null
+    private var progressBar: View? = null
     private var videoMimeType: String = ""
     private var audioMimeType: String = ""
     private var audioSampleRate: Int = 0
@@ -84,13 +87,19 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
             val listener = object: RtspClient.RtspClientListener {
                 override fun onRtspDisconnected() {
                     if (DEBUG) Log.v(TAG, "onRtspDisconnected()")
-                    Handler(Looper.getMainLooper()).post { textStatus?.text = "RTSP disconnected" }
+                    Handler(Looper.getMainLooper()).post {
+                        textStatus?.text = "RTSP disconnected"
+                        progressBar?.visibility = View.GONE
+                    }
                     rtspStopped.set(true)
                 }
 
                 override fun onRtspFailed(message: String?) {
                     Log.e(TAG, "onRtspFailed(message=\"$message\")")
-                    Handler(Looper.getMainLooper()).post { textStatus?.text = "RTSP failed: $message" }
+                    Handler(Looper.getMainLooper()).post {
+                        textStatus?.text = "RTSP failed: $message"
+                        progressBar?.visibility = View.GONE
+                    }
                     rtspStopped.set(true)
                 }
 
@@ -106,6 +115,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                             s += "audio"
                         }
                         textStatus?.text = "RTSP connected ($s)"
+                        progressBar?.visibility = View.GONE
                     }
                     if (sdpInfo.videoTrack != null) {
                         videoFrameQueue.clear()
@@ -142,7 +152,10 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
 
                 override fun onRtspFailedUnauthorized() {
                     Log.e(TAG, "onRtspFailedUnauthorized()")
-                    Handler(Looper.getMainLooper()).post { textStatus?.text = "RTSP username or password is incorrect" }
+                    Handler(Looper.getMainLooper()).post {
+                        textStatus?.text = "RTSP username or password is incorrect"
+                        progressBar?.visibility = View.GONE
+                    }
                     rtspStopped.set(true)
                 }
 
@@ -177,7 +190,10 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
 
                 override fun onRtspConnecting() {
                     if (DEBUG) Log.v(TAG, "onRtspConnecting()")
-                    Handler(Looper.getMainLooper()).post { textStatus?.text = "RTSP connecting" }
+                    Handler(Looper.getMainLooper()).post {
+                        textStatus?.text = "RTSP connecting"
+                        progressBar?.visibility = View.VISIBLE
+                    }
                 }
             }
             val uri: Uri = Uri.parse(liveViewModel.rtspRequest.value)
@@ -192,7 +208,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
                 val rtspClient = RtspClient.Builder(socket, uri.toString(), rtspStopped, listener)
                         .requestVideo(checkVideo!!.isChecked)
                         .requestAudio(checkAudio!!.isChecked)
-                        .withDebug(true)
+                        .withDebug(checkDebug!!.isChecked)
                         .withUserAgent("RTSP test")
                         .withCredentials(username, password)
                         .build()
@@ -218,10 +234,12 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
         val textRtspRequest: EditText = root.findViewById(R.id.edit_rtsp_request)
         val textRtspUsername: EditText = root.findViewById(R.id.edit_rtsp_username)
         val textRtspPassword: EditText = root.findViewById(R.id.edit_rtsp_password)
-        val surfaceView: SurfaceView = root.findViewById(R.id.surfaceView)
+        val surfaceView: SurfaceView = root.findViewById(R.id.surface_view)
         checkVideo = root.findViewById(R.id.check_video)
         checkAudio = root.findViewById(R.id.check_audio)
+        checkDebug = root.findViewById(R.id.check_debug)
         textStatus = root.findViewById(R.id.text_status)
+        progressBar = root.findViewById(R.id.progress_bar)
 
         surfaceView.holder.addCallback(this)
         surface = surfaceView.holder.surface

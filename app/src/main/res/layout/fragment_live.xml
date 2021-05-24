@@ -65,6 +65,13 @@
                 android:text="Audio"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
+            <CheckBox
+                android:id="@+id/check_debug"
+                android:text="Debug"
+                android:checked="true"
+                android:layout_marginTop="20dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
         </LinearLayout>
 
         <TextView
@@ -82,10 +89,20 @@
             android:layout_margin="20dp"
             android:text="Start RTSP" />
 
-        <SurfaceView
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="300dp"
-            android:id="@+id/surfaceView" />
+            android:layout_height="300dp">
+            <SurfaceView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:id="@+id/surface_view" />
+            <ProgressBar
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:visibility="gone"
+                android:id="@+id/progress_bar"/>
+        </FrameLayout>
 
     </LinearLayout>
 

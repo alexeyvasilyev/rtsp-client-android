@@ -490,14 +490,22 @@ public class RtspClient {
                         e.printStackTrace();
                     }
                 };
+
                 // Blocking call unless exitFlag set to true, thread.interrupt() called or connection closed.
-                readRtpData(
-                        inputStream,
-                        sdpInfo,
-                        exitFlag,
-                        listener,
-                        sessionTimeout / 2 * 1000,
-                        keepAliveListener);
+                try {
+                    readRtpData(
+                            inputStream,
+                            sdpInfo,
+                            exitFlag,
+                            listener,
+                            sessionTimeout / 2 * 1000,
+                            keepAliveListener);
+                } finally {
+                    // Cleanup resources on server side
+                    if (hasCapability(RTSP_CAPABILITY_TEARDOWN, capabilities))
+                        sendTeardownCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, authTokenFinal, sessionFinal);
+                }
+
             } else {
                 listener.onRtspFailed("No tracks found. RTSP server issue.");
             }
@@ -697,7 +705,7 @@ public class RtspClient {
             @Nullable String userAgent,
             @Nullable String session,
             @Nullable String authToken)
-            throws IOException {
+    throws IOException {
         if (DEBUG)
             Log.v(TAG, "sendGetParameterCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
         sendSimpleCommand("GET_PARAMETER", outputStream, request, cSeq, userAgent, session, authToken);
@@ -719,6 +727,28 @@ public class RtspClient {
         outputStream.write(("CSeq: " + cSeq + CRLF).getBytes());
         if (userAgent != null)
             outputStream.write(("User-Agent: " + userAgent + CRLF).getBytes());
+        outputStream.write(CRLF.getBytes());
+        outputStream.flush();
+    }
+
+    private static void sendTeardownCommand(
+            @NonNull OutputStream outputStream,
+            @NonNull String request,
+            int cSeq,
+            @Nullable String userAgent,
+            @Nullable String authToken,
+            @Nullable String session)
+    throws IOException {
+        if (DEBUG)
+            Log.v(TAG, "sendTeardownCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
+        outputStream.write(("TEARDOWN " + request + " RTSP/1.0" + CRLF).getBytes());
+        if (authToken != null)
+            outputStream.write(("Authorization: " + authToken + CRLF).getBytes());
+        outputStream.write(("CSeq: " + cSeq + CRLF).getBytes());
+        if (userAgent != null)
+            outputStream.write(("User-Agent: " + userAgent + CRLF).getBytes());
+        if (session != null)
+            outputStream.write(("Session: " + session + CRLF).getBytes());
         outputStream.write(CRLF.getBytes());
         outputStream.flush();
     }
@@ -774,23 +804,25 @@ public class RtspClient {
 //        if (debug)
 //            Log.d(TAG_DEBUG, "" + line);
         String line;
-        while (!exitFlag.get() && (line = readLine(inputStream)) != null) {
+        byte[] rtspHeader = "RTSP/1.0 ".getBytes();
+        // Search fpr "RTSP/1.0 "
+        while (!exitFlag.get() && readUntilBytesFound(inputStream, rtspHeader) && (line = readLine(inputStream)) != null) {
             if (debug)
                 Log.d(TAG_DEBUG, "" + line);
-            int indexRtsp = line.indexOf("RTSP/1.0 "); // 9 characters
-            if (indexRtsp >= 0) {
-                int indexCode = line.indexOf(' ', indexRtsp + 9);
-                String code = line.substring(indexRtsp + 9, indexCode);
+//            int indexRtsp = line.indexOf("TSP/1.0 "); // 8 characters, 'R' already found
+//            if (indexRtsp >= 0) {
+                int indexCode = line.indexOf(' ');
+                String code = line.substring(0, indexCode);
                 try {
                     int statusCode = Integer.parseInt(code);
                     if (debug)
                         Log.d(TAG_DEBUG, "Status code: " + statusCode);
                     return statusCode;
                 } catch (NumberFormatException e) {
-                    // Does not fulfill standard "RTSP/1.1 200 Ok" token
+                    // Does not fulfill standard "RTSP/1.1 200 OK" token
                     // Continue search for
                 }
-            }
+//            }
         }
         if (debug)
             Log.w(TAG_DEBUG, "Could not obtain status code");
@@ -1243,8 +1275,69 @@ public class RtspClient {
         return new String(b, 0, read);
     }
 
+    // int memcmp ( const void * ptr1, const void * ptr2, size_t num );
+    public static boolean memcmp(
+            @NonNull byte[] source1,
+            int offsetSource1,
+            @NonNull byte[] source2,
+            int offsetSource2,
+            int num) {
+        if (source1.length - offsetSource1 < num)
+            return false;
+        if (source2.length - offsetSource2 < num)
+            return false;
+
+        for (int i = 0; i < num; i++) {
+            if (source1[offsetSource1 + i] != source2[offsetSource2 + i])
+                return false;
+        }
+        return true;
+    }
+
+    private static void shiftLeftArray(@NonNull byte[] array, int num) {
+        // ABCDEF -> BCDEF
+        if (num - 1 >= 0)
+            System.arraycopy(array, 1, array, 0, num - 1);
+    }
+
+    private boolean readUntilBytesFound(@NonNull InputStream inputStream, @NonNull byte[] array) throws IOException {
+        byte[] buffer = new byte[array.length];
+
+        // Fill in buffer
+        if (NetUtils.readData(inputStream, buffer, 0, buffer.length) != buffer.length)
+            return false; // EOF
+
+        while (!exitFlag.get()) {
+            // Check if buffer is the same one
+            if (memcmp(buffer, 0, array, 0, buffer.length)) {
+                return true;
+            }
+            // ABCDEF -> BCDEFF
+            shiftLeftArray(buffer, buffer.length);
+            // Read 1 byte into last buffer item
+            if (NetUtils.readData(inputStream, buffer, buffer.length - 1, 1) != 1) {
+                return false; // EOF
+            }
+        }
+        return false;
+    }
+
+//    private boolean readUntilByteFound(@NonNull InputStream inputStream, byte bt) throws IOException {
+//        byte[] buffer = new byte[1];
+//        int readBytes;
+//        while (!exitFlag.get()) {
+//            readBytes = inputStream.read(buffer, 0, 1);
+//            if (readBytes == -1) // EOF
+//                return false;
+//            if (readBytes == 1 && buffer[0] == bt) {
+//                return true;
+//            }
+//        }
+//        return false;
+//    }
+
     @Nullable
-    private static String readLine(@NonNull InputStream inputStream) throws IOException {
+    private String readLine(@NonNull InputStream inputStream) throws IOException {
         byte[] bufferLine = new byte[MAX_LINE_SIZE];
         int offset = 0;
         int readBytes;
@@ -1270,7 +1363,7 @@ public class RtspClient {
                     offset++;
                 }
             }
-        } while (readBytes > 0);
+        } while (readBytes > 0 && !exitFlag.get());
         return null;
     }
 
