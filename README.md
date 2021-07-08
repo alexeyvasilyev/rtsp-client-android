@@ -77,7 +77,7 @@ String password = "secret";
 AtomicBoolean stopped = new AtomicBoolean(false);
 SSLSocket sslSocket = NetUtils.createSslSocketAndConnect(uri.getHost(), uri.getPort(), 10000);
 
-RtspClient rtspClient = new RtspClient.Builder(socket, uri.toString(), stopped, rtspClientListener)
+RtspClient rtspClient = new RtspClient.Builder(sslSocket, uri.toString(), stopped, rtspClientListener)
     .requestVideo(true)
     .requestAudio(true)
     .withDebug(false)
