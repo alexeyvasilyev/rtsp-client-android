@@ -202,7 +202,11 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
             val password = liveViewModel.rtspPassword.value
             try {
                 if (DEBUG) Log.d(TAG, "Connecting to ${uri.host.toString()}:$port...")
-                val socket: Socket = NetUtils.createSocketAndConnect(uri.host.toString(), port, 5000)
+
+                val socket: Socket = if (uri.scheme?.lowercase() == "rtsps")
+                    NetUtils.createSslSocketAndConnect(uri.host.toString(), port, 5000)
+                else
+                    NetUtils.createSocketAndConnect(uri.host.toString(), port, 5000)
 
                 // Blocking call until stopped variable is true or connection failed
                 val rtspClient = RtspClient.Builder(socket, uri.toString(), rtspStopped, listener)
