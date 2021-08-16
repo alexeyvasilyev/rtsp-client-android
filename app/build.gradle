@@ -1,16 +1,15 @@
 apply from: '../constants.gradle'
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-android-extensions'
 
 android {
-    compileSdkVersion 30
+    compileSdkVersion 31
     buildToolsVersion "30.0.3"
 
     defaultConfig {
         applicationId "com.alexvas.rtsp.demo"
         minSdkVersion 21
-        targetSdkVersion 30
+        targetSdkVersion 31
         versionCode 1
         versionName "1.0"
 
@@ -42,14 +41,14 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation "androidx.appcompat:appcompat:${androidXAppcompatVersion}"
-    implementation 'androidx.core:core-ktx:1.3.2'
-    implementation 'com.google.android.material:material:1.3.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.0.4'
+    implementation 'androidx.core:core-ktx:1.6.0'
+    implementation 'com.google.android.material:material:1.4.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.0'
     implementation 'androidx.lifecycle:lifecycle-extensions:2.2.0'
     implementation "androidx.navigation:navigation-fragment-ktx:${androidXNavigationVersion}"
     implementation "androidx.navigation:navigation-ui-ktx:${androidXNavigationVersion}"
     implementation "androidx.navigation:navigation-fragment-ktx:${androidXNavigationVersion}"
     implementation "androidx.navigation:navigation-ui-ktx:${androidXNavigationVersion}"
-    implementation 'com.github.AppDevNext.Logcat:LogcatCore:2.8.0'
+    implementation 'com.github.AppDevNext.Logcat:LogcatCore:2.9.1'
     implementation project(':library-client-rtsp')
 }
