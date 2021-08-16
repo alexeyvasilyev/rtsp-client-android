@@ -31,7 +31,7 @@ allprojects {
   }
 }
 dependencies {
-  implementation 'com.github.alexeyvasilyev:rtsp-client-android:1.3.4'
+  implementation 'com.github.alexeyvasilyev:rtsp-client-android:1.4.1'
 }
 ```
 
