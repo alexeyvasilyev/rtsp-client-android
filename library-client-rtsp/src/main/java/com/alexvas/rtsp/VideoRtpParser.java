@@ -17,7 +17,7 @@ class VideoRtpParser {
     private final static int NAL_UNIT_TYPE_FU_A = 28;
     private final static int NAL_UNIT_TYPE_FU_B = 29;
 
-    private byte[][] _buffer = new byte[1024][];
+    private final byte[][] _buffer = new byte[1024][];
     private byte[] _nalUnit;
     private boolean _nalEndFlag;
     private int _bufferLength;
