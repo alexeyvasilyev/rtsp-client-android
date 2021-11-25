@@ -5,7 +5,6 @@ import android.media.MediaCodec
 import android.media.MediaFormat
 import android.util.Log
 import android.view.Surface
-import timber.log.Timber
 import java.nio.ByteBuffer
 
 @SuppressLint("LogNotTimber")
@@ -57,11 +56,8 @@ class VideoDecodeThread (
 
             try {
                 when (val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000)) {
-                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(
-                        TAG,
-                        "Decoder format changed: " + decoder.outputFormat
-                    )
-                    MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Timber.d("No output from decoder available")
+                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: ${decoder.outputFormat}")
+                    MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
                     else -> {
                         if (outIndex >= 0 && !interrupted()) {
                             decoder.releaseOutputBuffer(outIndex, bufferInfo.size != 0)

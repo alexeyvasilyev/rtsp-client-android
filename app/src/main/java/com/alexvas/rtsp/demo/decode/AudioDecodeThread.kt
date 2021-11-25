@@ -110,7 +110,7 @@ class AudioDecodeThread (
             try {
 //                Log.w(TAG, "outIndex: ${outIndex}")
                 when (val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000)) {
-                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: " + decoder.outputFormat)
+                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: ${decoder.outputFormat}")
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
                     else -> {
                         if (outIndex >= 0) {
