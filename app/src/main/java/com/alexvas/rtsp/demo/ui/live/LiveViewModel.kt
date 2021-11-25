@@ -1,5 +1,6 @@
 package com.alexvas.rtsp.demo.ui.live
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.MutableLiveData
@@ -13,11 +14,15 @@ private const val DEFAULT_RTSP_REQUEST = "rtsp://10.0.1.3:554/axis-media/media.a
 private const val DEFAULT_RTSP_USERNAME = ""
 private const val DEFAULT_RTSP_PASSWORD = ""
 
-private val TAG: String = LiveViewModel::class.java.simpleName
-private const val DEBUG = true
 private const val LIVE_PARAMS_FILENAME = "live_params"
 
+@SuppressLint("LogNotTimber")
 class LiveViewModel : ViewModel() {
+
+    companion object {
+        private val TAG: String = LiveViewModel::class.java.simpleName
+        private const val DEBUG = true
+    }
 
     val rtspRequest = MutableLiveData<String>().apply {
         value = DEFAULT_RTSP_REQUEST

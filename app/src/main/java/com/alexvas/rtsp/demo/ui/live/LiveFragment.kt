@@ -1,5 +1,6 @@
 package com.alexvas.rtsp.demo.ui.live
 
+import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -27,6 +28,7 @@ private const val DEFAULT_RTSP_PORT = 554
 private val TAG: String = LiveFragment::class.java.simpleName
 private const val DEBUG = true
 
+@SuppressLint("LogNotTimber")
 class LiveFragment : Fragment(), SurfaceHolder.Callback {
 
     private lateinit var liveViewModel: LiveViewModel

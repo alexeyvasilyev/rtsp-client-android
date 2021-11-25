@@ -1,9 +1,11 @@
 package com.alexvas.rtsp.demo.decode
 
+import android.annotation.SuppressLint
 import android.media.*
 import android.util.Log
 import java.nio.ByteBuffer
 
+@SuppressLint("LogNotTimber")
 class AudioDecodeThread (
         private val mimeType: String,
         private val sampleRate: Int,
@@ -11,10 +13,10 @@ class AudioDecodeThread (
         private val codecConfig: ByteArray?,
         private val audioFrameQueue: FrameQueue) : Thread() {
 
-    private val TAG: String = AudioDecodeThread::class.java.simpleName
-    private val DEBUG = true
-
     companion object {
+        private val TAG: String = AudioDecodeThread::class.java.simpleName
+        private const val DEBUG = true
+
         fun getAacDecoderConfigData(audioProfile: Int, sampleRate: Int, channels: Int): ByteArray {
             // AOT_LC = 2
             // 0001 0000 0000 0000
@@ -106,9 +108,8 @@ class AudioDecodeThread (
 //            Log.i(TAG, "inIndex: ${inIndex}")
 
             try {
-                val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000)
 //                Log.w(TAG, "outIndex: ${outIndex}")
-                when (outIndex) {
+                when (val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000)) {
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: " + decoder.outputFormat)
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
                     else -> {

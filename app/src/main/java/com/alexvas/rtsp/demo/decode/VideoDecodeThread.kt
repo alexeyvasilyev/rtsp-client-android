@@ -1,11 +1,14 @@
 package com.alexvas.rtsp.demo.decode
 
+import android.annotation.SuppressLint
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.util.Log
 import android.view.Surface
+import timber.log.Timber
 import java.nio.ByteBuffer
 
+@SuppressLint("LogNotTimber")
 class VideoDecodeThread (
         private val surface: Surface,
         private val mimeType: String,
@@ -13,8 +16,10 @@ class VideoDecodeThread (
         private val height: Int,
         private val videoFrameQueue: FrameQueue) : Thread() {
 
-    private val TAG: String = VideoDecodeThread::class.java.simpleName
-    private val DEBUG = true
+    companion object {
+        private val TAG: String = VideoDecodeThread::class.java.simpleName
+        private const val DEBUG = true
+    }
 
     override fun run() {
         if (DEBUG) Log.d(TAG, "VideoDecodeThread started")
@@ -51,12 +56,14 @@ class VideoDecodeThread (
             }
 
             try {
-                val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000)
-                when (outIndex) {
-                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: " + decoder.outputFormat)
-                    MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
+                when (val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000)) {
+                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(
+                        TAG,
+                        "Decoder format changed: " + decoder.outputFormat
+                    )
+                    MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Timber.d("No output from decoder available")
                     else -> {
-                        if (outIndex >= 0) {
+                        if (outIndex >= 0 && !interrupted()) {
                             decoder.releaseOutputBuffer(outIndex, bufferInfo.size != 0)
                         }
                     }
@@ -67,7 +74,7 @@ class VideoDecodeThread (
 
             // All decoded frames have been rendered, we can stop playing now
             if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
-                Log.d(TAG, "OutputBuffer BUFFER_FLAG_END_OF_STREAM")
+                if (DEBUG) Log.d(TAG, "OutputBuffer BUFFER_FLAG_END_OF_STREAM")
                 break
             }
         }

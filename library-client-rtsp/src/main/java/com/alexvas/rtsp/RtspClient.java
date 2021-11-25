@@ -359,7 +359,7 @@ public class RtspClient {
                         sdpInfo.audioTrack = null;
                     // Only AAC supported
                     if (sdpInfo.audioTrack != null && sdpInfo.audioTrack.audioCodec != AUDIO_CODEC_AAC) {
-                        Log.e(TAG_DEBUG, "Unknown RTSP audio codec specified");
+                        Log.e(TAG_DEBUG, "Unknown RTSP audio codec (" + sdpInfo.audioTrack.audioCodec + ") specified in SDP");
                         sdpInfo.audioTrack = null;
                     }
                 } catch (Exception e) {
@@ -929,7 +929,7 @@ public class RtspClient {
                                     AudioTrack track = ((AudioTrack) tracks[1]);
                                     values = TextUtils.split(values[1], "/");
                                     if (values.length > 1) {
-                                        if ("mpeg4-generic".equals(values[0].toLowerCase())) {
+                                        if ("mpeg4-generic".equalsIgnoreCase(values[0])) {
                                             track.audioCodec = AUDIO_CODEC_AAC;
                                         } else {
                                             Log.w(TAG, "Unknown audio codec \"" + values[0] + "\"");

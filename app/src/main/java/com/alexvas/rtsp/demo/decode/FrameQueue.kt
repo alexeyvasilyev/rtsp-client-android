@@ -1,16 +1,21 @@
 package com.alexvas.rtsp.demo.decode
 
+import android.annotation.SuppressLint
 import android.util.Log
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.TimeUnit
 
+@SuppressLint("LogNotTimber")
 class FrameQueue {
 
     class Frame(val data: ByteArray, val offset: Int, val length: Int, val timestamp: Long)
 
-    val TAG: String = FrameQueue::class.java.simpleName
-    val queue: BlockingQueue<Frame> = ArrayBlockingQueue(60)
+    companion object {
+        private val TAG: String = FrameQueue::class.java.simpleName
+    }
+
+    private val queue: BlockingQueue<Frame> = ArrayBlockingQueue(60)
 
     @Throws(InterruptedException::class)
     fun push(frame: Frame): Boolean {
