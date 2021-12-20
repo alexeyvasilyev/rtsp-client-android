@@ -20,17 +20,38 @@ class VideoDecodeThread (
         private const val DEBUG = true
     }
 
+    private var isRunning = true
+
+    fun stopAsync() {
+        if (DEBUG) Log.v(TAG, "stopAsync()")
+        isRunning = false
+        // Wake up sleep() code
+        interrupt()
+    }
+
+    private fun getSafeSurfaceDimension(dimen: Int): Int {
+        // Be sure codec width and height is even
+        return if (dimen % 2 == 0)
+            dimen
+        else
+            dimen - 1
+    }
+
     override fun run() {
         if (DEBUG) Log.d(TAG, "VideoDecodeThread started")
 
+        val safeWidth = getSafeSurfaceDimension(width)
+        val safeHeight = getSafeSurfaceDimension(height)
         val decoder = MediaCodec.createDecoderByType(mimeType)
-        val format = MediaFormat.createVideoFormat(mimeType, width, height)
+        val format = MediaFormat.createVideoFormat(mimeType, safeWidth, safeHeight)
 
+        if (DEBUG) Log.d(TAG, "Configuring surface")
         decoder.configure(format, surface, null, 0)
         decoder.start()
+        if (DEBUG) Log.d(TAG, "Surface configured")
 
         val bufferInfo = MediaCodec.BufferInfo()
-        while (!interrupted()) {
+        while (isRunning) {
             val inIndex: Int = decoder.dequeueInputBuffer(10000L)
             if (inIndex >= 0) {
                 // fill inputBuffers[inputBufferIndex] with valid data
@@ -55,11 +76,12 @@ class VideoDecodeThread (
             }
 
             try {
+                if (!isRunning) break
                 when (val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000)) {
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: ${decoder.outputFormat}")
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
                     else -> {
-                        if (outIndex >= 0 && !interrupted()) {
+                        if (outIndex >= 0 && isRunning) {
                             decoder.releaseOutputBuffer(outIndex, bufferInfo.size != 0)
                         }
                     }

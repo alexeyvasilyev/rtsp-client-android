@@ -63,9 +63,9 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
         if (DEBUG) Log.v(TAG, "onRtspClientStopped()")
         rtspStopped.set(true)
         btnStartStop?.text = "Start RTSP"
-        videoDecodeThread?.interrupt()
+        videoDecodeThread?.stopAsync()
         videoDecodeThread = null
-        audioDecodeThread?.interrupt()
+        audioDecodeThread?.stopAsync()
         audioDecodeThread = null
     }
 
@@ -335,7 +335,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
         surfaceWidth = width
         surfaceHeight = height
         if (videoDecodeThread != null) {
-            videoDecodeThread?.interrupt()
+            videoDecodeThread?.stopAsync()
             videoDecodeThread = VideoDecodeThread(surface!!, videoMimeType, width, height, videoFrameQueue)
             videoDecodeThread?.start()
         }
@@ -344,7 +344,7 @@ class LiveFragment : Fragment(), SurfaceHolder.Callback {
     // SurfaceHolder.Callback
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         if (DEBUG) Log.v(TAG, "surfaceDestroyed()")
-        videoDecodeThread?.interrupt()
+        videoDecodeThread?.stopAsync()
         videoDecodeThread = null
     }
 

@@ -13,37 +13,13 @@ class AudioDecodeThread (
         private val codecConfig: ByteArray?,
         private val audioFrameQueue: FrameQueue) : Thread() {
 
-    companion object {
-        private val TAG: String = AudioDecodeThread::class.java.simpleName
-        private const val DEBUG = true
+    private var isRunning = true
 
-        fun getAacDecoderConfigData(audioProfile: Int, sampleRate: Int, channels: Int): ByteArray {
-            // AOT_LC = 2
-            // 0001 0000 0000 0000
-            var extraDataAac = audioProfile shl 11
-            // Sample rate
-            when (sampleRate) {
-                7350 -> extraDataAac = extraDataAac or (0xC shl 7)
-                8000 -> extraDataAac = extraDataAac or (0xB shl 7)
-                11025 -> extraDataAac = extraDataAac or (0xA shl 7)
-                12000 -> extraDataAac = extraDataAac or (0x9 shl 7)
-                16000 -> extraDataAac = extraDataAac or (0x8 shl 7)
-                22050 -> extraDataAac = extraDataAac or (0x7 shl 7)
-                24000 -> extraDataAac = extraDataAac or (0x6 shl 7)
-                32000 -> extraDataAac = extraDataAac or (0x5 shl 7)
-                44100 -> extraDataAac = extraDataAac or (0x4 shl 7)
-                48000 -> extraDataAac = extraDataAac or (0x3 shl 7)
-                64000 -> extraDataAac = extraDataAac or (0x2 shl 7)
-                88200 -> extraDataAac = extraDataAac or (0x1 shl 7)
-                96000 -> extraDataAac = extraDataAac or (0x0 shl 7)
-            }
-            // Channels
-            extraDataAac = extraDataAac or (channels shl 3)
-            val extraData = ByteArray(2)
-            extraData[0] = (extraDataAac and 0xff00 shr 8).toByte() // high byte
-            extraData[1] = (extraDataAac and 0xff).toByte()         // low byte
-            return extraData
-        }
+    fun stopAsync() {
+        if (DEBUG) Log.v(TAG, "stopAsync()")
+        isRunning = false
+        // Wake up sleep() code
+        interrupt()
     }
 
     override fun run() {
@@ -82,7 +58,7 @@ class AudioDecodeThread (
         audioTrack.play()
 
         val bufferInfo = MediaCodec.BufferInfo()
-        while (!interrupted()) {
+        while (isRunning) {
             val inIndex: Int = decoder.dequeueInputBuffer(10000L)
             if (inIndex >= 0) {
                 // fill inputBuffers[inputBufferIndex] with valid data
@@ -109,11 +85,12 @@ class AudioDecodeThread (
 
             try {
 //                Log.w(TAG, "outIndex: ${outIndex}")
+                if (!isRunning) break
                 when (val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000)) {
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: ${decoder.outputFormat}")
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
                     else -> {
-                        if (outIndex >= 0) {
+                        if (outIndex >= 0 && isRunning) {
                             val byteBuffer: ByteBuffer? = decoder.getOutputBuffer(outIndex)
 
                             val chunk = ByteArray(bufferInfo.size)
@@ -145,5 +122,39 @@ class AudioDecodeThread (
         audioFrameQueue.clear()
         if (DEBUG) Log.d(TAG, "AudioDecodeThread stopped")
     }
+
+    companion object {
+        private val TAG: String = AudioDecodeThread::class.java.simpleName
+        private const val DEBUG = true
+
+        fun getAacDecoderConfigData(audioProfile: Int, sampleRate: Int, channels: Int): ByteArray {
+            // AOT_LC = 2
+            // 0001 0000 0000 0000
+            var extraDataAac = audioProfile shl 11
+            // Sample rate
+            when (sampleRate) {
+                7350 -> extraDataAac = extraDataAac or (0xC shl 7)
+                8000 -> extraDataAac = extraDataAac or (0xB shl 7)
+                11025 -> extraDataAac = extraDataAac or (0xA shl 7)
+                12000 -> extraDataAac = extraDataAac or (0x9 shl 7)
+                16000 -> extraDataAac = extraDataAac or (0x8 shl 7)
+                22050 -> extraDataAac = extraDataAac or (0x7 shl 7)
+                24000 -> extraDataAac = extraDataAac or (0x6 shl 7)
+                32000 -> extraDataAac = extraDataAac or (0x5 shl 7)
+                44100 -> extraDataAac = extraDataAac or (0x4 shl 7)
+                48000 -> extraDataAac = extraDataAac or (0x3 shl 7)
+                64000 -> extraDataAac = extraDataAac or (0x2 shl 7)
+                88200 -> extraDataAac = extraDataAac or (0x1 shl 7)
+                96000 -> extraDataAac = extraDataAac or (0x0 shl 7)
+            }
+            // Channels
+            extraDataAac = extraDataAac or (channels shl 3)
+            val extraData = ByteArray(2)
+            extraData[0] = (extraDataAac and 0xff00 shr 8).toByte() // high byte
+            extraData[1] = (extraDataAac and 0xff).toByte()         // low byte
+            return extraData
+        }
+    }
+
 }
 
