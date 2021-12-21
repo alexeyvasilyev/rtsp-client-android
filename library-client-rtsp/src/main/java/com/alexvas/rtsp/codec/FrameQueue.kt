@@ -1,19 +1,18 @@
-package com.alexvas.rtsp.demo.decode
+package com.alexvas.rtsp.codec
 
-import android.annotation.SuppressLint
 import android.util.Log
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.TimeUnit
 
-@SuppressLint("LogNotTimber")
 class FrameQueue {
 
-    class Frame(val data: ByteArray, val offset: Int, val length: Int, val timestamp: Long)
-
-    companion object {
-        private val TAG: String = FrameQueue::class.java.simpleName
-    }
+    data class Frame (
+        val data: ByteArray,
+        val offset: Int,
+        val length: Int,
+        val timestamp: Long
+    )
 
     private val queue: BlockingQueue<Frame> = ArrayBlockingQueue(60)
 
@@ -43,4 +42,9 @@ class FrameQueue {
     fun clear() {
         queue.clear()
     }
+
+    companion object {
+        private val TAG: String = FrameQueue::class.java.simpleName
+    }
+
 }

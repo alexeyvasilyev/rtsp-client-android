@@ -1,4 +1,4 @@
-package com.alexvas.rtsp;
+package com.alexvas.rtsp.parser;
 
 import android.util.Log;
 

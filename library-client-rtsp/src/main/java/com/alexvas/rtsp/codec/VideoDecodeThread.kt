@@ -1,24 +1,17 @@
-package com.alexvas.rtsp.demo.decode
+package com.alexvas.rtsp.codec
 
-import android.annotation.SuppressLint
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.util.Log
 import android.view.Surface
 import java.nio.ByteBuffer
 
-@SuppressLint("LogNotTimber")
 class VideoDecodeThread (
         private val surface: Surface,
         private val mimeType: String,
         private val width: Int,
         private val height: Int,
         private val videoFrameQueue: FrameQueue) : Thread() {
-
-    companion object {
-        private val TAG: String = VideoDecodeThread::class.java.simpleName
-        private const val DEBUG = true
-    }
 
     private var isRunning = true
 
@@ -45,10 +38,15 @@ class VideoDecodeThread (
         val decoder = MediaCodec.createDecoderByType(mimeType)
         val format = MediaFormat.createVideoFormat(mimeType, safeWidth, safeHeight)
 
-        if (DEBUG) Log.d(TAG, "Configuring surface")
+//        try {
+        if (DEBUG) Log.d(TAG, "Configuring surface ${safeWidth}x${safeHeight} w/ '$mimeType'")
         decoder.configure(format, surface, null, 0)
         decoder.start()
-        if (DEBUG) Log.d(TAG, "Surface configured")
+        if (DEBUG) Log.d(TAG, "Started surface")
+//        } catch (e: IllegalArgumentException) {
+//            e.printStackTrace()
+//            return
+//        }
 
         val bufferInfo = MediaCodec.BufferInfo()
         while (isRunning) {
@@ -61,15 +59,15 @@ class VideoDecodeThread (
                 // Preventing BufferOverflowException
 //              if (length > byteBuffer.limit()) throw DecoderFatalException("Error")
 
-                val frame: FrameQueue.Frame?
                 try {
-                    frame = videoFrameQueue.pop()
+                    val frame = videoFrameQueue.pop()
                     if (frame == null) {
-                        Log.d(TAG, "Empty frame")
+                        Log.d(TAG, "Empty video frame")
                     } else {
                         byteBuffer!!.put(frame.data, frame.offset, frame.length)
                         decoder.queueInputBuffer(inIndex, frame.offset, frame.length, frame.timestamp, 0)
                     }
+                } catch (e: InterruptedException) {
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -86,7 +84,8 @@ class VideoDecodeThread (
                         }
                     }
                 }
-            } catch (e: java.lang.Exception) {
+            } catch (e: InterruptedException) {
+            } catch (e: Exception) {
                 e.printStackTrace()
             }
 
@@ -103,5 +102,11 @@ class VideoDecodeThread (
 
         if (DEBUG) Log.d(TAG, "VideoDecodeThread stopped")
     }
+
+    companion object {
+        private val TAG: String = VideoDecodeThread::class.java.simpleName
+        private const val DEBUG = true
+    }
+
 }
 

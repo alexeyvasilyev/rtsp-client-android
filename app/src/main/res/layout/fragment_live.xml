@@ -18,7 +18,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp">
             <EditText
-                android:id="@+id/edit_rtsp_request"
+                android:id="@+id/etRtspRequest"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="RTSP request"
@@ -30,7 +30,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp">
             <EditText
-                android:id="@+id/edit_rtsp_username"
+                android:id="@+id/etRtspUsername"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="RTSP username"/>
@@ -42,7 +42,7 @@
             android:layout_marginTop="20dp"
             app:passwordToggleEnabled="true">
             <EditText
-                android:id="@+id/edit_rtsp_password"
+                android:id="@+id/etRtspPassword"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textPassword"
@@ -55,18 +55,18 @@
             android:layout_marginTop="20dp"
             android:orientation="vertical">
             <CheckBox
-                android:id="@+id/check_video"
+                android:id="@+id/cbVideo"
                 android:text="Video"
                 android:checked="true"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
             <CheckBox
-                android:id="@+id/check_audio"
+                android:id="@+id/cbAudio"
                 android:text="Audio"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
             <CheckBox
-                android:id="@+id/check_debug"
+                android:id="@+id/cbDebug"
                 android:text="Debug"
                 android:checked="true"
                 android:layout_marginTop="20dp"
@@ -75,14 +75,14 @@
         </LinearLayout>
 
         <TextView
-            android:id="@+id/text_status"
+            android:id="@+id/tvStatus"
             android:layout_marginTop="10dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 
         <Button
             android:layout_marginTop="30dp"
-            android:id="@+id/button_start_stop_rtsp"
+            android:id="@+id/bnStartStop"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
@@ -92,16 +92,16 @@
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="300dp">
-            <SurfaceView
+            <com.alexvas.rtsp.widget.RtspSurfaceView
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:id="@+id/surface_view" />
+                android:id="@+id/svVideo" />
             <ProgressBar
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:visibility="gone"
-                android:id="@+id/progress_bar"/>
+                android:id="@+id/pbLoading"/>
         </FrameLayout>
 
     </LinearLayout>

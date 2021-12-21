@@ -1,11 +1,9 @@
-package com.alexvas.rtsp.demo.decode
+package com.alexvas.rtsp.codec
 
-import android.annotation.SuppressLint
 import android.media.*
 import android.util.Log
 import java.nio.ByteBuffer
 
-@SuppressLint("LogNotTimber")
 class AudioDecodeThread (
         private val mimeType: String,
         private val sampleRate: Int,

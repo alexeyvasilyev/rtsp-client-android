@@ -1,11 +1,11 @@
-package com.alexvas.rtsp;
+package com.alexvas.rtsp.parser;
 
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-class VideoRtpParser {
+public class VideoRtpParser {
 
     private static final String TAG = VideoRtpParser.class.getSimpleName();
     private static final boolean DEBUG = false;

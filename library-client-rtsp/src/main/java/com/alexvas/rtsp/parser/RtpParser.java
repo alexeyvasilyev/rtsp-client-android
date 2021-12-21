@@ -1,4 +1,4 @@
-package com.alexvas.rtsp;
+package com.alexvas.rtsp.parser;
 
 import android.util.Log;
 
@@ -10,7 +10,7 @@ import com.alexvas.utils.NetUtils;
 import java.io.IOException;
 import java.io.InputStream;
 
-class RtpParser {
+public class RtpParser {
 
     private static final String TAG = RtpParser.class.getSimpleName();
     private static final boolean DEBUG = false;
@@ -108,7 +108,7 @@ class RtpParser {
     }
 
     @Nullable
-    static RtpHeader readHeader(@NonNull InputStream inputStream) throws IOException {
+    public static RtpHeader readHeader(@NonNull InputStream inputStream) throws IOException {
         // 24 01 00 1c 80 c8 00 06  7f 1d d2 c4
         // 24 01 00 1c 80 c8 00 06  13 9b cf 60
         // 24 02 01 12 80 e1 01 d2  00 07 43 f0
