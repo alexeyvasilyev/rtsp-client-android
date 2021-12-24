@@ -1,6 +1,7 @@
 package com.alexvas.rtsp.widget
 
 import android.content.Context
+import android.media.MediaCodec
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -24,8 +25,8 @@ class RtspSurfaceView: SurfaceView {
     private var username: String? = null
     private var password: String? = null
     private var userAgent: String? = null
-    private val requestVideo = true
-    private val requestAudio = true
+    private var requestVideo = true
+    private var requestAudio = true
     private var rtspThread: RtspThread? = null
     private var videoFrameQueue = FrameQueue(60)
     private var audioFrameQueue = FrameQueue(10)
@@ -40,6 +41,7 @@ class RtspSurfaceView: SurfaceView {
     private var audioSampleRate: Int = 0
     private var audioChannelCount: Int = 0
     private var audioCodecConfig: ByteArray? = null
+    private var firstFrameRendered = false
 
     interface RtspStatusListener {
         fun onRtspStatusConnecting()
@@ -47,6 +49,7 @@ class RtspSurfaceView: SurfaceView {
         fun onRtspStatusDisconnected()
         fun onRtspStatusFailedUnauthorized()
         fun onRtspStatusFailed(message: String?)
+        fun onRtspFirstFrameRendered()
     }
 
     private val proxyClientListener = object: RtspClient.RtspClientListener {
@@ -105,18 +108,21 @@ class RtspSurfaceView: SurfaceView {
         }
 
         override fun onRtspDisconnected() {
+            if (DEBUG) Log.v(TAG, "onRtspDisconnected()")
             uiHandler.post {
                 statusListener?.onRtspStatusDisconnected()
             }
         }
 
         override fun onRtspFailedUnauthorized() {
+            if (DEBUG) Log.v(TAG, "onRtspFailedUnauthorized()")
             uiHandler.post {
                 statusListener?.onRtspStatusFailedUnauthorized()
             }
         }
 
         override fun onRtspFailed(message: String?) {
+            if (DEBUG) Log.v(TAG, "onRtspFailed(message='$message')")
             uiHandler.post {
                 statusListener?.onRtspStatusFailed(message)
             }
@@ -171,6 +177,8 @@ class RtspSurfaceView: SurfaceView {
     fun start(requestVideo: Boolean, requestAudio: Boolean) {
         if (DEBUG) Log.v(TAG, "start(requestVideo=$requestVideo, requestAudio=$requestAudio)")
         if (rtspThread != null) rtspThread?.stopAsync()
+        this.requestVideo = requestVideo
+        this.requestAudio = requestAudio
         rtspThread = RtspThread()
         rtspThread?.start()
     }
@@ -238,13 +246,22 @@ class RtspSurfaceView: SurfaceView {
     private fun onRtspClientConnected() {
         if (DEBUG) Log.v(TAG, "onRtspClientConnected()")
         if (videoMimeType.isNotEmpty()) {
-            videoDecodeThread = VideoDecodeThread(holder.surface, videoMimeType, surfaceWidth, surfaceHeight, videoFrameQueue)
-            videoDecodeThread?.start()
+            firstFrameRendered = false
+            val onFrameRenderedListener =
+                MediaCodec.OnFrameRenderedListener { _, _, _ ->
+                    if (!firstFrameRendered) statusListener?.onRtspFirstFrameRendered()
+                    firstFrameRendered = true
+                }
+            Log.i(TAG, "Starting video decoder with mime type \"$videoMimeType\"")
+            videoDecodeThread = VideoDecodeThread(
+                holder.surface, videoMimeType, surfaceWidth, surfaceHeight, videoFrameQueue, onFrameRenderedListener)
+            videoDecodeThread!!.start()
         }
         if (audioMimeType.isNotEmpty() /*&& checkAudio!!.isChecked*/) {
             Log.i(TAG, "Starting audio decoder with mime type \"$audioMimeType\"")
-            audioDecodeThread = AudioDecodeThread(audioMimeType, audioSampleRate, audioChannelCount, audioCodecConfig, audioFrameQueue)
-            audioDecodeThread?.start()
+            audioDecodeThread = AudioDecodeThread(
+                audioMimeType, audioSampleRate, audioChannelCount, audioCodecConfig, audioFrameQueue)
+            audioDecodeThread!!.start()
         }
     }
 

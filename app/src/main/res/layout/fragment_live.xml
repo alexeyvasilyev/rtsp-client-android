@@ -5,7 +5,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ui.live.LiveFragment">
+    tools:context=".live.LiveFragment">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -50,52 +50,56 @@
         </com.google.android.material.textfield.TextInputLayout>
 
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:orientation="vertical">
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:orientation="horizontal">
             <CheckBox
                 android:id="@+id/cbVideo"
                 android:text="Video"
                 android:checked="true"
-                android:layout_width="match_parent"
+                android:layout_margin="10dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
             <CheckBox
                 android:id="@+id/cbAudio"
                 android:text="Audio"
+                android:layout_margin="10dp"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
-            <CheckBox
-                android:id="@+id/cbDebug"
-                android:text="Debug"
-                android:checked="true"
-                android:layout_marginTop="20dp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
+
+<!--            <CheckBox-->
+<!--                android:id="@+id/cbDebug"-->
+<!--                android:text="Debug"-->
+<!--                android:checked="true"-->
+<!--                android:layout_margin="20dp"-->
+<!--                android:layout_width="wrap_content"-->
+<!--                android:layout_height="wrap_content" />-->
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/tvStatus"
-            android:layout_marginTop="10dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
-
         <Button
-            android:layout_marginTop="30dp"
+            android:layout_marginTop="10dp"
             android:id="@+id/bnStartStop"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:layout_margin="20dp"
+            android:layout_marginBottom="10dp"
             android:text="Start RTSP" />
 
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="300dp">
+            android:layout_height="300dp"
+            android:animateLayoutChanges="true">
             <com.alexvas.rtsp.widget.RtspSurfaceView
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:id="@+id/svVideo" />
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@android:color/black"
+                android:id="@+id/vShutter" />
             <ProgressBar
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -103,6 +107,27 @@
                 android:visibility="gone"
                 android:id="@+id/pbLoading"/>
         </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="5dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <Button
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                style="@style/Widget.Material3.Button.TextButton.Icon"
+                android:id="@+id/bnSnapshot"
+                android:enabled="false"
+                android:text="Photo"
+                app:icon="@drawable/ic_camera_black_24dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:id="@+id/tvStatus"
+                android:gravity="end"/>
+        </LinearLayout>
 
     </LinearLayout>
 

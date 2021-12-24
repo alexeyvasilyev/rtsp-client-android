@@ -1,6 +1,7 @@
 package com.alexvas.rtsp.codec
 
 import android.media.MediaCodec
+import android.media.MediaCodec.OnFrameRenderedListener
 import android.media.MediaFormat
 import android.util.Log
 import android.view.Surface
@@ -11,7 +12,8 @@ class VideoDecodeThread (
         private val mimeType: String,
         private val width: Int,
         private val height: Int,
-        private val videoFrameQueue: FrameQueue) : Thread() {
+        private val videoFrameQueue: FrameQueue,
+        private val onFrameRenderedListener: OnFrameRenderedListener) : Thread() {
 
     private var isRunning = true
 
@@ -41,6 +43,7 @@ class VideoDecodeThread (
 //        try {
         if (DEBUG) Log.d(TAG, "Configuring surface ${safeWidth}x${safeHeight} w/ '$mimeType'")
         decoder.configure(format, surface, null, 0)
+        decoder.setOnFrameRenderedListener(onFrameRenderedListener, null)
         decoder.start()
         if (DEBUG) Log.d(TAG, "Started surface")
 //        } catch (e: IllegalArgumentException) {
@@ -105,7 +108,7 @@ class VideoDecodeThread (
 
     companion object {
         private val TAG: String = VideoDecodeThread::class.java.simpleName
-        private const val DEBUG = true
+        private const val DEBUG = false
     }
 
 }

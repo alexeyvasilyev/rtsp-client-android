@@ -7,7 +7,7 @@
 
     <fragment
         android:id="@+id/navigation_live"
-        android:name="com.alexvas.rtsp.demo.ui.live.LiveFragment"
+        android:name="com.alexvas.rtsp.demo.live.LiveFragment"
         android:label="@string/title_live"
         tools:layout="@layout/fragment_live" />
 

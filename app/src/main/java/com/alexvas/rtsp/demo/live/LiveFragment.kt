@@ -1,16 +1,21 @@
-package com.alexvas.rtsp.demo.ui.live
+package com.alexvas.rtsp.demo.live
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.HandlerThread
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
 import android.view.*
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.alexvas.rtsp.demo.databinding.FragmentLiveBinding
 import com.alexvas.rtsp.widget.RtspSurfaceView
+import java.util.concurrent.atomic.AtomicBoolean
 
 
 @SuppressLint("LogNotTimber")
@@ -23,6 +28,12 @@ class LiveFragment : Fragment() {
         override fun onRtspStatusConnecting() {
             binding.tvStatus.text = "RTSP connecting"
             binding.pbLoading.visibility = View.VISIBLE
+            binding.vShutter.visibility = View.VISIBLE
+            binding.etRtspRequest.isEnabled = false
+            binding.etRtspUsername.isEnabled = false
+            binding.etRtspPassword.isEnabled = false
+            binding.cbVideo.isEnabled = false
+            binding.cbAudio.isEnabled = false
         }
 
         override fun onRtspStatusConnected() {
@@ -35,17 +46,53 @@ class LiveFragment : Fragment() {
             binding.tvStatus.text = "RTSP disconnected"
             binding.bnStartStop.text = "Start RTSP"
             binding.pbLoading.visibility = View.GONE
+            binding.vShutter.visibility = View.VISIBLE
+            binding.bnSnapshot.isEnabled = false
+            binding.cbVideo.isEnabled = true
+            binding.cbAudio.isEnabled = true
+            binding.etRtspRequest.isEnabled = true
+            binding.etRtspUsername.isEnabled = true
+            binding.etRtspPassword.isEnabled = true
         }
 
         override fun onRtspStatusFailedUnauthorized() {
             binding.tvStatus.text = "RTSP username or password invalid"
             binding.pbLoading.visibility = View.GONE
+            Toast.makeText(context, binding.tvStatus.text , Toast.LENGTH_LONG).show()
         }
 
         override fun onRtspStatusFailed(message: String?) {
             binding.tvStatus.text = "Error: $message"
+            Toast.makeText(context, binding.tvStatus.text , Toast.LENGTH_LONG).show()
             binding.pbLoading.visibility = View.GONE
         }
+
+        override fun onRtspFirstFrameRendered() {
+            binding.vShutter.visibility = View.GONE
+            binding.bnSnapshot.isEnabled = true
+        }
+    }
+
+    private fun getSnapshot(): Bitmap? {
+        if (DEBUG) Log.v(TAG, "getSnapshot()")
+        val surfaceBitmap = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+        val lock = Object()
+        val success = AtomicBoolean(false)
+        val thread = HandlerThread("PixelCopyHelper")
+        thread.start()
+        val sHandler = Handler(thread.looper)
+        val listener = PixelCopy.OnPixelCopyFinishedListener { copyResult ->
+            success.set(copyResult == PixelCopy.SUCCESS)
+            synchronized (lock) {
+                lock.notify()
+            }
+        }
+        synchronized (lock) {
+            PixelCopy.request(binding.svVideo.holder.surface, surfaceBitmap, listener, sHandler)
+            lock.wait()
+        }
+        thread.quitSafely()
+        return if (success.get()) surfaceBitmap else null
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -114,20 +161,29 @@ class LiveFragment : Fragment() {
                 binding.svVideo.start(binding.cbVideo.isChecked, binding.cbAudio.isChecked)
             }
         }
+
+        binding.bnSnapshot.setOnClickListener {
+            val bitmap = getSnapshot()
+            // TODO Save snapshot to DCIM folder
+            if (bitmap != null) {
+                Toast.makeText(requireContext(), "Snapshot succeeded", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(requireContext(), "Snapshot failed", Toast.LENGTH_LONG).show()
+            }
+        }
         return binding.root
     }
 
-    override fun onStart() {
-        if (DEBUG) Log.v(TAG, "onStart()")
-        super.onStart()
-        liveViewModel.loadParams(context)
+    override fun onResume() {
+        if (DEBUG) Log.v(TAG, "onResume()")
+        super.onResume()
+        liveViewModel.loadParams(requireContext())
     }
 
-    override fun onStop() {
-        if (DEBUG) Log.v(TAG, "onStop()")
-        super.onStop()
-        liveViewModel.saveParams(context)
-//        onRtspClientStopped()
+    override fun onPause() {
+        if (DEBUG) Log.v(TAG, "onPause()")
+        super.onPause()
+        liveViewModel.saveParams(requireContext())
     }
 
     companion object {

@@ -1,4 +1,4 @@
-package com.alexvas.rtsp.demo.ui.live
+package com.alexvas.rtsp.demo.live
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -44,34 +44,34 @@ class LiveViewModel : ViewModel() {
 //        rtspRequest.value = "rtsp://10.0.1.3:554/axis-media/media.amp"
 //    }
 
-    fun loadParams(context: Context?) {
+    fun loadParams(context: Context) {
         if (DEBUG)
             Log.v(TAG, "loadParams()")
-        val pref = context?.getSharedPreferences(LIVE_PARAMS_FILENAME, Context.MODE_PRIVATE)
+        val pref = context.getSharedPreferences(LIVE_PARAMS_FILENAME, Context.MODE_PRIVATE)
         try {
-            rtspRequest.setValue(pref?.getString(RTSP_REQUEST_KEY, DEFAULT_RTSP_REQUEST))
+            rtspRequest.setValue(pref.getString(RTSP_REQUEST_KEY, DEFAULT_RTSP_REQUEST))
         } catch (e: ClassCastException) {
             e.printStackTrace()
         }
         try {
-            rtspUsername.setValue(pref?.getString(RTSP_USERNAME_KEY, DEFAULT_RTSP_USERNAME))
+            rtspUsername.setValue(pref.getString(RTSP_USERNAME_KEY, DEFAULT_RTSP_USERNAME))
         } catch (e: ClassCastException) {
             e.printStackTrace()
         }
         try {
-            rtspPassword.setValue(pref?.getString(RTSP_PASSWORD_KEY, DEFAULT_RTSP_PASSWORD))
+            rtspPassword.setValue(pref.getString(RTSP_PASSWORD_KEY, DEFAULT_RTSP_PASSWORD))
         } catch (e: ClassCastException) {
             e.printStackTrace()
         }
     }
 
-    fun saveParams(context: Context?) {
+    fun saveParams(context: Context) {
         if (DEBUG) Log.v(TAG, "saveParams()")
-        val editor = context?.getSharedPreferences(LIVE_PARAMS_FILENAME, Context.MODE_PRIVATE)?.edit()
-        editor?.putString(RTSP_REQUEST_KEY, rtspRequest.value)
-        editor?.putString(RTSP_USERNAME_KEY, rtspUsername.value)
-        editor?.putString(RTSP_PASSWORD_KEY, rtspPassword.value)
-        editor?.apply()
+        val editor = context?.getSharedPreferences(LIVE_PARAMS_FILENAME, Context.MODE_PRIVATE).edit()
+        editor.putString(RTSP_REQUEST_KEY, rtspRequest.value)
+        editor.putString(RTSP_USERNAME_KEY, rtspUsername.value)
+        editor.putString(RTSP_PASSWORD_KEY, rtspPassword.value)
+        editor.apply()
     }
 
 }

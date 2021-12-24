@@ -123,7 +123,7 @@ class AudioDecodeThread (
 
     companion object {
         private val TAG: String = AudioDecodeThread::class.java.simpleName
-        private const val DEBUG = true
+        private const val DEBUG = false
 
         fun getAacDecoderConfigData(audioProfile: Int, sampleRate: Int, channels: Int): ByteArray {
             // AOT_LC = 2
