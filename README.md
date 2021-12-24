@@ -1,5 +1,5 @@
 # rtsp-client-android
-Lightweight RTSP client library for Android written in Java.
+Lightweight RTSP client library for Android.
 
 [![Release](https://jitpack.io/v/alexeyvasilyev/rtsp-client-android.svg)](https://jitpack.io/#alexeyvasilyev/rtsp-client-android)
 
@@ -51,7 +51,7 @@ val username = "admin"
 val password = "secret"
 svVideo.init(uri, username, password)
 svVideo.start(requestVideo = true, requestAudio = true)
-...
+// ...
 svVideo.stop()
 ```
 
@@ -75,8 +75,6 @@ val proxyClientListener = object: RtspClient.RtspClientListener {
         Log.e(TAG, "RTSP failed with message '$message'")
     }
 }
-
-
 
 val uri = Uri.parse("rtsps://10.0.1.3/test.sdp")
 val username = "admin"
