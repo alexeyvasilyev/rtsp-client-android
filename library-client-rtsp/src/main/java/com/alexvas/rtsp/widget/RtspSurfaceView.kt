@@ -27,8 +27,8 @@ class RtspSurfaceView: SurfaceView {
     private val requestVideo = true
     private val requestAudio = true
     private var rtspThread: RtspThread? = null
-    private var videoFrameQueue = FrameQueue()
-    private var audioFrameQueue = FrameQueue()
+    private var videoFrameQueue = FrameQueue(60)
+    private var audioFrameQueue = FrameQueue(10)
     private var videoDecodeThread: VideoDecodeThread? = null
     private var audioDecodeThread: AudioDecodeThread? = null
     private var surfaceWidth = 1920

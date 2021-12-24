@@ -5,7 +5,7 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.TimeUnit
 
-class FrameQueue {
+class FrameQueue(frameQueueSize: Int) {
 
     data class Frame (
         val data: ByteArray,
@@ -14,7 +14,7 @@ class FrameQueue {
         val timestamp: Long
     )
 
-    private val queue: BlockingQueue<Frame> = ArrayBlockingQueue(60)
+    private val queue: BlockingQueue<Frame> = ArrayBlockingQueue(frameQueueSize)
 
     @Throws(InterruptedException::class)
     fun push(frame: Frame): Boolean {
