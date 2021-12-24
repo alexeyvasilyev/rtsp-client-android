@@ -22,8 +22,7 @@ Lightweight RTSP client library for Android.
 
 ## Compile
 
-To use this library in your project with gradle add this to your build.gradle:
-
+To use this library in your project add this to your build.gradle:
 ```gradle
 allprojects {
   repositories {
@@ -36,7 +35,7 @@ dependencies {
 ```
 
 ## How to use:
-Easiest way is just to use `RtspSurfaceView` class.
+Easiest way is just to use `RtspSurfaceView` class for showing video stream in UI.
 ```xml
 <com.alexvas.rtsp.widget.RtspSurfaceView
     android:layout_width="match_parent"
@@ -44,7 +43,7 @@ Easiest way is just to use `RtspSurfaceView` class.
     android:id="@+id/svVideo" />
 ```
 
-Then in code
+Then in code use:
 ```kotlin
 val uri = Uri.parse("rtsps://10.0.1.3/test.sdp")
 val username = "admin"
@@ -55,7 +54,7 @@ svVideo.start(requestVideo = true, requestAudio = true)
 svVideo.stop()
 ```
 
-You can still use library without any decoding (obtaining raw frames), e.g. for writing video stream.
+You can still use library without any decoding (just for obtaining raw frames), e.g. for writing video stream into MP4 via muxer.
 
 ```kotlin
 val proxyClientListener = object: RtspClient.RtspClientListener {
