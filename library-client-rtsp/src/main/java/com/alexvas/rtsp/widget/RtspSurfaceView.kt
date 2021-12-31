@@ -19,7 +19,7 @@ import java.net.Socket
 import java.util.concurrent.atomic.AtomicBoolean
 
 
-class RtspSurfaceView: SurfaceView {
+open class RtspSurfaceView: SurfaceView {
 
     private lateinit var uri: Uri
     private var username: String? = null

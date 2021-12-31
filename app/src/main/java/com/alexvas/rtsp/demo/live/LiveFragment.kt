@@ -56,12 +56,14 @@ class LiveFragment : Fragment() {
         }
 
         override fun onRtspStatusFailedUnauthorized() {
+            if (context == null) return
             binding.tvStatus.text = "RTSP username or password invalid"
             binding.pbLoading.visibility = View.GONE
             Toast.makeText(context, binding.tvStatus.text , Toast.LENGTH_LONG).show()
         }
 
         override fun onRtspStatusFailed(message: String?) {
+            if (context == null) return
             binding.tvStatus.text = "Error: $message"
             Toast.makeText(context, binding.tvStatus.text , Toast.LENGTH_LONG).show()
             binding.pbLoading.visibility = View.GONE
@@ -181,9 +183,14 @@ class LiveFragment : Fragment() {
     }
 
     override fun onPause() {
-        if (DEBUG) Log.v(TAG, "onPause()")
+        val started = binding.svVideo.isStarted()
+        if (DEBUG) Log.v(TAG, "onPause(), started:$started")
         super.onPause()
         liveViewModel.saveParams(requireContext())
+
+        if (started) {
+            binding.svVideo.stop()
+        }
     }
 
     companion object {

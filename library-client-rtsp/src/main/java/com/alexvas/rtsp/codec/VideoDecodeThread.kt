@@ -99,8 +99,15 @@ class VideoDecodeThread (
             }
         }
 
-        decoder.stop()
-        decoder.release()
+        try {
+            decoder.stop()
+            decoder.release()
+        } catch (e: InterruptedException) {
+            if (DEBUG) Log.e(TAG, "InterruptedException: " + e.message)
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception: " + e.message)
+            e.printStackTrace()
+        }
         videoFrameQueue.clear()
 
         if (DEBUG) Log.d(TAG, "VideoDecodeThread stopped")
