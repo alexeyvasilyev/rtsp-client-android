@@ -33,23 +33,26 @@ class VideoDecodeThread (
     }
 
     override fun run() {
-        if (DEBUG) Log.d(TAG, "VideoDecodeThread started")
+        if (DEBUG) Log.d(TAG, "$name started")
 
         val safeWidth = getSafeSurfaceDimension(width)
         val safeHeight = getSafeSurfaceDimension(height)
         val decoder = MediaCodec.createDecoderByType(mimeType)
         val format = MediaFormat.createVideoFormat(mimeType, safeWidth, safeHeight)
 
-//        try {
-        if (DEBUG) Log.d(TAG, "Configuring surface ${safeWidth}x${safeHeight} w/ '$mimeType'")
-        decoder.configure(format, surface, null, 0)
         decoder.setOnFrameRenderedListener(onFrameRenderedListener, null)
+
+        if (DEBUG) Log.d(TAG, "Configuring surface decoder ${safeWidth}x${safeHeight} w/ '$mimeType'")
+        try {
+            decoder.configure(format, surface, null, 0)
+        } catch (e: IllegalArgumentException) {
+            if (DEBUG) Log.d(TAG, "$name stopped due to '${e.message}'")
+            // While configuring stopAsync can be called and surface released. Just exit.
+            if (isRunning) e.printStackTrace()
+            return
+        }
         decoder.start()
-        if (DEBUG) Log.d(TAG, "Started surface")
-//        } catch (e: IllegalArgumentException) {
-//            e.printStackTrace()
-//            return
-//        }
+        if (DEBUG) Log.d(TAG, "Started surface decoder")
 
         val bufferInfo = MediaCodec.BufferInfo()
         while (isRunning) {
@@ -64,9 +67,7 @@ class VideoDecodeThread (
 
                 try {
                     val frame = videoFrameQueue.pop()
-                    if (frame == null) {
-                        Log.d(TAG, "Empty video frame")
-                    } else {
+                    if (frame != null) {
                         byteBuffer!!.put(frame.data, frame.offset, frame.length)
                         decoder.queueInputBuffer(inIndex, frame.offset, frame.length, frame.timestamp, 0)
                     }
@@ -78,7 +79,7 @@ class VideoDecodeThread (
 
             try {
                 if (!isRunning) break
-                when (val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000)) {
+                when (val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000L)) {
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: ${decoder.outputFormat}")
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
                     else -> {
@@ -103,14 +104,12 @@ class VideoDecodeThread (
             decoder.stop()
             decoder.release()
         } catch (e: InterruptedException) {
-            if (DEBUG) Log.e(TAG, "InterruptedException: " + e.message)
         } catch (e: Exception) {
-            Log.e(TAG, "Exception: " + e.message)
             e.printStackTrace()
         }
         videoFrameQueue.clear()
 
-        if (DEBUG) Log.d(TAG, "VideoDecodeThread stopped")
+        if (DEBUG) Log.d(TAG, "$name stopped")
     }
 
     companion object {

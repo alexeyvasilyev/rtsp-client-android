@@ -21,7 +21,7 @@ class AudioDecodeThread (
     }
 
     override fun run() {
-        if (DEBUG) Log.d(TAG, "AudioDecodeThread started")
+        if (DEBUG) Log.d(TAG, "$name started")
 
         // Creating audio decoder
         val decoder = MediaCodec.createDecoderByType(mimeType)
@@ -69,9 +69,7 @@ class AudioDecodeThread (
                 val audioFrame: FrameQueue.Frame?
                 try {
                     audioFrame = audioFrameQueue.pop()
-                    if (audioFrame == null) {
-                        Log.d(TAG, "Empty frame")
-                    } else {
+                    if (audioFrame != null) {
                         byteBuffer!!.put(audioFrame.data, audioFrame.offset, audioFrame.length)
                         decoder.queueInputBuffer(inIndex, audioFrame.offset, audioFrame.length, audioFrame.timestamp, 0)
                     }
@@ -84,7 +82,7 @@ class AudioDecodeThread (
             try {
 //                Log.w(TAG, "outIndex: ${outIndex}")
                 if (!isRunning) break
-                when (val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000)) {
+                when (val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000L)) {
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: ${decoder.outputFormat}")
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
                     else -> {
@@ -115,10 +113,15 @@ class AudioDecodeThread (
         audioTrack.flush()
         audioTrack.release()
 
-        decoder.stop()
-        decoder.release()
+        try {
+            decoder.stop()
+            decoder.release()
+        } catch (e: InterruptedException) {
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         audioFrameQueue.clear()
-        if (DEBUG) Log.d(TAG, "AudioDecodeThread stopped")
+        if (DEBUG) Log.d(TAG, "$name stopped")
     }
 
     companion object {
