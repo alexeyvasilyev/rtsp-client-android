@@ -57,7 +57,7 @@ svVideo.stop()
 You can still use library without any decoding (just for obtaining raw frames), e.g. for writing video stream into MP4 via muxer.
 
 ```kotlin
-val proxyClientListener = object: RtspClient.RtspClientListener {
+val rtspClientListener = object: RtspClient.RtspClientListener {
     override fun onRtspConnecting() {}
     override fun onRtspConnected(sdpInfo: SdpInfo) {}
     override fun onRtspVideoNalUnitReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
