@@ -180,7 +180,8 @@ open class RtspSurfaceView: SurfaceView {
         this.requestVideo = requestVideo
         this.requestAudio = requestAudio
         rtspThread = RtspThread()
-        rtspThread?.start()
+        rtspThread!!.name = "RTSP IO thread [${getUriName()}]"
+        rtspThread!!.start()
     }
 
     fun stop() {
@@ -255,12 +256,14 @@ open class RtspSurfaceView: SurfaceView {
             Log.i(TAG, "Starting video decoder with mime type \"$videoMimeType\"")
             videoDecodeThread = VideoDecodeThread(
                 holder.surface, videoMimeType, surfaceWidth, surfaceHeight, videoFrameQueue, onFrameRenderedListener)
+            videoDecodeThread!!.name = "RTSP video thread [${getUriName()}]"
             videoDecodeThread!!.start()
         }
         if (audioMimeType.isNotEmpty() /*&& checkAudio!!.isChecked*/) {
             Log.i(TAG, "Starting audio decoder with mime type \"$audioMimeType\"")
             audioDecodeThread = AudioDecodeThread(
                 audioMimeType, audioSampleRate, audioChannelCount, audioCodecConfig, audioFrameQueue)
+            audioDecodeThread!!.name = "RTSP audio thread [${getUriName()}]"
             audioDecodeThread!!.start()
         }
     }
@@ -278,6 +281,11 @@ open class RtspSurfaceView: SurfaceView {
         videoDecodeThread = null
         audioDecodeThread?.stopAsync()
         audioDecodeThread = null
+    }
+
+    private fun getUriName(): String {
+        val port = if (uri.port == -1) DEFAULT_RTSP_PORT else uri.port
+        return "${uri.host.toString()}:$port"
     }
 
     companion object {
