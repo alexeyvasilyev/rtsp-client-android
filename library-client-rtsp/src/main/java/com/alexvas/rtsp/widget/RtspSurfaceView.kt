@@ -21,6 +21,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 open class RtspSurfaceView: SurfaceView {
 
+    var debug: Boolean = false
+
     private lateinit var uri: Uri
     private var username: String? = null
     private var password: String? = null
@@ -220,7 +222,7 @@ open class RtspSurfaceView: SurfaceView {
                 val rtspClient = RtspClient.Builder(socket, uri.toString(), rtspStopped, proxyClientListener)
                     .requestVideo(requestVideo)
                     .requestAudio(requestAudio)
-//                  .withDebug(false)
+                    .withDebug(debug)
                     .withUserAgent(userAgent)
                     .withCredentials(username, password)
                     .build()

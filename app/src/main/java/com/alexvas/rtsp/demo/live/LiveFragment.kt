@@ -34,6 +34,7 @@ class LiveFragment : Fragment() {
             binding.etRtspPassword.isEnabled = false
             binding.cbVideo.isEnabled = false
             binding.cbAudio.isEnabled = false
+            binding.cbDebug.isEnabled = false
         }
 
         override fun onRtspStatusConnected() {
@@ -50,6 +51,7 @@ class LiveFragment : Fragment() {
             binding.bnSnapshot.isEnabled = false
             binding.cbVideo.isEnabled = true
             binding.cbAudio.isEnabled = true
+            binding.cbDebug.isEnabled = true
             binding.etRtspRequest.isEnabled = true
             binding.etRtspUsername.isEnabled = true
             binding.etRtspPassword.isEnabled = true
@@ -160,6 +162,7 @@ class LiveFragment : Fragment() {
             } else {
                 val uri = Uri.parse(liveViewModel.rtspRequest.value)
                 binding.svVideo.init(uri, liveViewModel.rtspUsername.value, liveViewModel.rtspPassword.value, "rtsp-client-android")
+                binding.svVideo.debug = binding.cbDebug.isChecked
                 binding.svVideo.start(binding.cbVideo.isChecked, binding.cbAudio.isChecked)
             }
         }
