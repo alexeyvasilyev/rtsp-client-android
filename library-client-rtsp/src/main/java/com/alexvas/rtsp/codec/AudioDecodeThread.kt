@@ -60,7 +60,13 @@ class AudioDecodeThread (
             val inIndex: Int = decoder.dequeueInputBuffer(10000L)
             if (inIndex >= 0) {
                 // fill inputBuffers[inputBufferIndex] with valid data
-                val byteBuffer: ByteBuffer? = decoder.getInputBuffer(inIndex)
+                var byteBuffer: ByteBuffer?
+                try {
+                    byteBuffer = decoder.getInputBuffer(inIndex)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    break
+                }
                 byteBuffer?.rewind()
 
                 // Preventing BufferOverflowException
