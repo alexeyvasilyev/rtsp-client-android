@@ -55,6 +55,8 @@ class VideoDecodeThread (
         if (DEBUG) Log.d(TAG, "Started surface decoder")
 
         val bufferInfo = MediaCodec.BufferInfo()
+
+        // Main loop
         while (isRunning) {
             val inIndex: Int = decoder.dequeueInputBuffer(10000L)
             if (inIndex >= 0) {
@@ -73,8 +75,12 @@ class VideoDecodeThread (
 
                 try {
                     val frame = videoFrameQueue.pop()
-                    if (frame != null) {
-                        byteBuffer!!.put(frame.data, frame.offset, frame.length)
+                    if (frame == null) {
+                        Log.d(TAG, "Empty video frame")
+                        // Release input buffer
+                        decoder.queueInputBuffer(inIndex, 0, 0, 0L, 0)
+                    } else {
+                        byteBuffer?.put(frame.data, frame.offset, frame.length)
                         decoder.queueInputBuffer(inIndex, frame.offset, frame.length, frame.timestamp, 0)
                     }
                 } catch (e: InterruptedException) {
@@ -89,9 +95,8 @@ class VideoDecodeThread (
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: ${decoder.outputFormat}")
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
                     else -> {
-                        if (outIndex >= 0 && isRunning) {
-                            decoder.releaseOutputBuffer(outIndex, bufferInfo.size != 0)
-                        }
+                        if (outIndex >= 0)
+                            decoder.releaseOutputBuffer(outIndex, bufferInfo.size != 0 && isRunning)
                     }
                 }
             } catch (e: InterruptedException) {
@@ -104,6 +109,19 @@ class VideoDecodeThread (
                 if (DEBUG) Log.d(TAG, "OutputBuffer BUFFER_FLAG_END_OF_STREAM")
                 break
             }
+        }
+
+        // Drain decoder
+        try {
+            val inIndex: Int = decoder.dequeueInputBuffer(5000L)
+            if (inIndex >= 0) {
+                decoder.queueInputBuffer(inIndex, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+            } else {
+                Log.w(TAG, "Not able to signal end of stream")
+            }
+        } catch (e: Exception) {
+            // Decoder was in Uninitialized state.
+            e.printStackTrace()
         }
 
         try {

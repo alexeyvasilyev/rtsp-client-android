@@ -75,8 +75,12 @@ class AudioDecodeThread (
                 val audioFrame: FrameQueue.Frame?
                 try {
                     audioFrame = audioFrameQueue.pop()
-                    if (audioFrame != null) {
-                        byteBuffer!!.put(audioFrame.data, audioFrame.offset, audioFrame.length)
+                    if (audioFrame == null) {
+                        Log.d(TAG, "Empty audio frame")
+                        // Release input buffer
+                        decoder.queueInputBuffer(inIndex, 0, 0, 0L, 0)
+                    } else {
+                        byteBuffer?.put(audioFrame.data, audioFrame.offset, audioFrame.length)
                         decoder.queueInputBuffer(inIndex, audioFrame.offset, audioFrame.length, audioFrame.timestamp, 0)
                     }
                 } catch (e: Exception) {
@@ -92,7 +96,7 @@ class AudioDecodeThread (
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: ${decoder.outputFormat}")
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
                     else -> {
-                        if (outIndex >= 0 && isRunning) {
+                        if (outIndex >= 0) {
                             val byteBuffer: ByteBuffer? = decoder.getOutputBuffer(outIndex)
 
                             val chunk = ByteArray(bufferInfo.size)
