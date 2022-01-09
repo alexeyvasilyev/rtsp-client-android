@@ -5,6 +5,7 @@ import android.media.MediaCodec.OnFrameRenderedListener
 import android.media.MediaFormat
 import android.util.Log
 import android.view.Surface
+import com.google.android.exoplayer2.util.Util
 import java.nio.ByteBuffer
 
 class VideoDecodeThread (
@@ -24,25 +25,29 @@ class VideoDecodeThread (
         interrupt()
     }
 
-    private fun getSafeSurfaceDimension(dimen: Int): Int {
-        // Be sure codec width and height is even
-        return if (dimen % 2 == 0)
-            dimen
-        else
-            dimen - 1
+    private fun getDecoderSafeWidthHeight(decoder: MediaCodec): Pair<Int, Int> {
+        val capabilities = decoder.codecInfo.getCapabilitiesForType(mimeType).videoCapabilities
+        return if (capabilities.isSizeSupported(width, height)) {
+            Pair(width, height)
+        } else {
+            val widthAlignment = capabilities.widthAlignment
+            val heightAlignment = capabilities.heightAlignment
+            Pair(
+                Util.ceilDivide(width, widthAlignment) * widthAlignment,
+                Util.ceilDivide(height, heightAlignment) * heightAlignment)
+        }
     }
 
     override fun run() {
         if (DEBUG) Log.d(TAG, "$name started")
 
-        val safeWidth = getSafeSurfaceDimension(width)
-        val safeHeight = getSafeSurfaceDimension(height)
         val decoder = MediaCodec.createDecoderByType(mimeType)
-        val format = MediaFormat.createVideoFormat(mimeType, safeWidth, safeHeight)
+        val widthHeight = getDecoderSafeWidthHeight(decoder)
+        val format = MediaFormat.createVideoFormat(mimeType, widthHeight.first, widthHeight.second)
 
         decoder.setOnFrameRenderedListener(onFrameRenderedListener, null)
 
-        if (DEBUG) Log.d(TAG, "Configuring surface decoder ${safeWidth}x${safeHeight} w/ '$mimeType'")
+        if (DEBUG) Log.d(TAG, "Configuring surface ${widthHeight.first}x${widthHeight.second} w/ '$mimeType', max instances: ${decoder.codecInfo.getCapabilitiesForType(mimeType).maxSupportedInstances}")
         try {
             decoder.configure(format, surface, null, 0)
         } catch (e: IllegalArgumentException) {
