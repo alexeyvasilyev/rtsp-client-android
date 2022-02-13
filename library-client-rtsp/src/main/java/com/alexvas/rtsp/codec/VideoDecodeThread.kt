@@ -3,10 +3,12 @@ package com.alexvas.rtsp.codec
 import android.media.MediaCodec
 import android.media.MediaCodec.OnFrameRenderedListener
 import android.media.MediaFormat
+import android.os.Build
 import android.util.Log
 import android.view.Surface
 import com.google.android.exoplayer2.util.Util
 import java.nio.ByteBuffer
+import java.util.concurrent.atomic.AtomicBoolean
 
 class VideoDecodeThread (
         private val surface: Surface,
@@ -16,11 +18,11 @@ class VideoDecodeThread (
         private val videoFrameQueue: FrameQueue,
         private val onFrameRenderedListener: OnFrameRenderedListener) : Thread() {
 
-    private var isRunning = true
+    private var exitFlag: AtomicBoolean = AtomicBoolean(false);
 
     fun stopAsync() {
         if (DEBUG) Log.v(TAG, "stopAsync()")
-        isRunning = false
+        exitFlag.set(true);
         // Wake up sleep() code
         interrupt()
     }
@@ -33,52 +35,46 @@ class VideoDecodeThread (
             val widthAlignment = capabilities.widthAlignment
             val heightAlignment = capabilities.heightAlignment
             Pair(
-                Util.ceilDivide(width, widthAlignment) * widthAlignment,
-                Util.ceilDivide(height, heightAlignment) * heightAlignment)
+                    Util.ceilDivide(width, widthAlignment) * widthAlignment,
+                    Util.ceilDivide(height, heightAlignment) * heightAlignment)
         }
     }
 
     override fun run() {
         if (DEBUG) Log.d(TAG, "$name started")
 
-        val decoder = MediaCodec.createDecoderByType(mimeType)
-        val widthHeight = getDecoderSafeWidthHeight(decoder)
-        val format = MediaFormat.createVideoFormat(mimeType, widthHeight.first, widthHeight.second)
-
-        decoder.setOnFrameRenderedListener(onFrameRenderedListener, null)
-
-        if (DEBUG) Log.d(TAG, "Configuring surface ${widthHeight.first}x${widthHeight.second} w/ '$mimeType', max instances: ${decoder.codecInfo.getCapabilitiesForType(mimeType).maxSupportedInstances}")
         try {
+            val decoder = MediaCodec.createDecoderByType(mimeType)
+            val widthHeight = getDecoderSafeWidthHeight(decoder)
+            val format = MediaFormat.createVideoFormat(mimeType, widthHeight.first, widthHeight.second)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                decoder.setOnFrameRenderedListener(onFrameRenderedListener, null)
+            }
+
+            if (DEBUG) Log.d(TAG, "Configuring surface ${widthHeight.first}x${widthHeight.second} w/ '$mimeType', max instances: ${decoder.codecInfo.getCapabilitiesForType(mimeType).maxSupportedInstances}")
             decoder.configure(format, surface, null, 0)
-        } catch (e: IllegalArgumentException) {
-            if (DEBUG) Log.d(TAG, "$name stopped due to '${e.message}'")
-            // While configuring stopAsync can be called and surface released. Just exit.
-            if (isRunning) e.printStackTrace()
-            return
-        }
-        decoder.start()
-        if (DEBUG) Log.d(TAG, "Started surface decoder")
 
-        val bufferInfo = MediaCodec.BufferInfo()
+            // TODO: add scale option (ie: FIT, SCALE_CROP, SCALE_NO_CROP)
+            //decoder.setVideoScalingMode(MediaCodec.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
 
-        // Main loop
-        while (isRunning) {
-            val inIndex: Int = decoder.dequeueInputBuffer(10000L)
-            if (inIndex >= 0) {
-                // fill inputBuffers[inputBufferIndex] with valid data
-                var byteBuffer: ByteBuffer?
-                try {
+            decoder.start()
+            if (DEBUG) Log.d(TAG, "Started surface decoder")
+
+            val bufferInfo = MediaCodec.BufferInfo()
+
+            // Main loop
+            while (!exitFlag.get()) {
+                val inIndex: Int = decoder.dequeueInputBuffer(10000L)
+                if (inIndex >= 0) {
+                    // fill inputBuffers[inputBufferIndex] with valid data
+                    var byteBuffer: ByteBuffer?
                     byteBuffer = decoder.getInputBuffer(inIndex)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    break
-                }
-                byteBuffer?.rewind()
+                    byteBuffer?.rewind()
 
-                // Preventing BufferOverflowException
+                    // Preventing BufferOverflowException
 //              if (length > byteBuffer.limit()) throw DecoderFatalException("Error")
 
-                try {
                     val frame = videoFrameQueue.pop()
                     if (frame == null) {
                         Log.d(TAG, "Empty video frame")
@@ -88,55 +84,43 @@ class VideoDecodeThread (
                         byteBuffer?.put(frame.data, frame.offset, frame.length)
                         decoder.queueInputBuffer(inIndex, frame.offset, frame.length, frame.timestamp, 0)
                     }
-                } catch (e: InterruptedException) {
-                } catch (e: Exception) {
-                    e.printStackTrace()
                 }
-            }
 
-            try {
-                if (!isRunning) break
+                if (exitFlag.get()) break
                 when (val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000L)) {
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: ${decoder.outputFormat}")
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
                     else -> {
                         if (outIndex >= 0)
-                            decoder.releaseOutputBuffer(outIndex, bufferInfo.size != 0 && isRunning)
+                            decoder.releaseOutputBuffer(outIndex, bufferInfo.size != 0 && !exitFlag.get())
                     }
                 }
-            } catch (e: InterruptedException) {
-            } catch (e: Exception) {
-                e.printStackTrace()
+
+                // All decoded frames have been rendered, we can stop playing now
+                if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                    if (DEBUG) Log.d(TAG, "OutputBuffer BUFFER_FLAG_END_OF_STREAM")
+                    break
+                }
             }
 
-            // All decoded frames have been rendered, we can stop playing now
-            if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
-                if (DEBUG) Log.d(TAG, "OutputBuffer BUFFER_FLAG_END_OF_STREAM")
-                break
-            }
-        }
-
-        // Drain decoder
-        try {
+            // Drain decoder
             val inIndex: Int = decoder.dequeueInputBuffer(5000L)
             if (inIndex >= 0) {
                 decoder.queueInputBuffer(inIndex, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
             } else {
                 Log.w(TAG, "Not able to signal end of stream")
             }
-        } catch (e: Exception) {
-            // Decoder was in Uninitialized state.
-            e.printStackTrace()
-        }
 
-        try {
             decoder.stop()
             decoder.release()
-        } catch (e: InterruptedException) {
+            videoFrameQueue.clear()
+
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "$name stopped due to '${e.message}'")
+            // While configuring stopAsync can be called and surface released. Just exit.
+            if (!exitFlag.get()) e.printStackTrace()
+            return
         }
-        videoFrameQueue.clear()
 
         if (DEBUG) Log.d(TAG, "$name stopped")
     }
