@@ -3,7 +3,6 @@ package com.alexvas.rtsp.codec
 import android.media.MediaCodec
 import android.media.MediaCodec.OnFrameRenderedListener
 import android.media.MediaFormat
-import android.os.Build
 import android.util.Log
 import android.view.Surface
 import com.google.android.exoplayer2.util.Util
@@ -18,11 +17,11 @@ class VideoDecodeThread (
         private val videoFrameQueue: FrameQueue,
         private val onFrameRenderedListener: OnFrameRenderedListener) : Thread() {
 
-    private var exitFlag: AtomicBoolean = AtomicBoolean(false);
+    private var exitFlag: AtomicBoolean = AtomicBoolean(false)
 
     fun stopAsync() {
         if (DEBUG) Log.v(TAG, "stopAsync()")
-        exitFlag.set(true);
+        exitFlag.set(true)
         // Wake up sleep() code
         interrupt()
     }
@@ -48,15 +47,13 @@ class VideoDecodeThread (
             val widthHeight = getDecoderSafeWidthHeight(decoder)
             val format = MediaFormat.createVideoFormat(mimeType, widthHeight.first, widthHeight.second)
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                decoder.setOnFrameRenderedListener(onFrameRenderedListener, null)
-            }
+            decoder.setOnFrameRenderedListener(onFrameRenderedListener, null)
 
             if (DEBUG) Log.d(TAG, "Configuring surface ${widthHeight.first}x${widthHeight.second} w/ '$mimeType', max instances: ${decoder.codecInfo.getCapabilitiesForType(mimeType).maxSupportedInstances}")
             decoder.configure(format, surface, null, 0)
 
             // TODO: add scale option (ie: FIT, SCALE_CROP, SCALE_NO_CROP)
-            //decoder.setVideoScalingMode(MediaCodec.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
+            //decoder.setVideoScalingMode(MediaCodec.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
 
             decoder.start()
             if (DEBUG) Log.d(TAG, "Started surface decoder")
@@ -68,13 +65,12 @@ class VideoDecodeThread (
                 val inIndex: Int = decoder.dequeueInputBuffer(10000L)
                 if (inIndex >= 0) {
                     // fill inputBuffers[inputBufferIndex] with valid data
-                    var byteBuffer: ByteBuffer?
-                    byteBuffer = decoder.getInputBuffer(inIndex)
+                    var byteBuffer: ByteBuffer? = decoder.getInputBuffer(inIndex)
                     byteBuffer?.rewind()
 
                     // Preventing BufferOverflowException
-//              if (length > byteBuffer.limit()) throw DecoderFatalException("Error")
-
+                    // if (length > byteBuffer.limit()) throw DecoderFatalException("Error")
+                    
                     val frame = videoFrameQueue.pop()
                     if (frame == null) {
                         Log.d(TAG, "Empty video frame")
