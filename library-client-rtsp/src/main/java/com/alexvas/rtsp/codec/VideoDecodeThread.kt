@@ -65,7 +65,7 @@ class VideoDecodeThread (
                 val inIndex: Int = decoder.dequeueInputBuffer(10000L)
                 if (inIndex >= 0) {
                     // fill inputBuffers[inputBufferIndex] with valid data
-                    var byteBuffer: ByteBuffer? = decoder.getInputBuffer(inIndex)
+                    val byteBuffer: ByteBuffer? = decoder.getInputBuffer(inIndex)
                     byteBuffer?.rewind()
 
                     // Preventing BufferOverflowException
