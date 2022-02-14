@@ -34,6 +34,7 @@ class FrameQueue(frameQueueSize: Int) {
             }
             return frame
         } catch (e: InterruptedException) {
+            Log.w(TAG, "Cannot add frame, queue is full", e)
             Thread.currentThread().interrupt()
         }
         return null

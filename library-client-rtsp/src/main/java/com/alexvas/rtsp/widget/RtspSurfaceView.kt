@@ -197,12 +197,11 @@ open class RtspSurfaceView: SurfaceView {
     }
 
     inner class RtspThread: Thread() {
-        private var isRunning = true
         private var rtspStopped: AtomicBoolean = AtomicBoolean(false)
 
         fun stopAsync() {
             if (DEBUG) Log.v(TAG, "stopAsync()")
-            isRunning = false
+            rtspStopped.set(true)
             // Wake up sleep() code
             interrupt()
         }
