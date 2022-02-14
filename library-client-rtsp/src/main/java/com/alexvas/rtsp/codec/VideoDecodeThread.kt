@@ -34,8 +34,8 @@ class VideoDecodeThread (
             val widthAlignment = capabilities.widthAlignment
             val heightAlignment = capabilities.heightAlignment
             Pair(
-                    Util.ceilDivide(width, widthAlignment) * widthAlignment,
-                    Util.ceilDivide(height, heightAlignment) * heightAlignment)
+                Util.ceilDivide(width, widthAlignment) * widthAlignment,
+                Util.ceilDivide(height, heightAlignment) * heightAlignment)
         }
     }
 
@@ -70,7 +70,7 @@ class VideoDecodeThread (
 
                     // Preventing BufferOverflowException
                     // if (length > byteBuffer.limit()) throw DecoderFatalException("Error")
-                    
+
                     val frame = videoFrameQueue.pop()
                     if (frame == null) {
                         Log.d(TAG, "Empty video frame")
