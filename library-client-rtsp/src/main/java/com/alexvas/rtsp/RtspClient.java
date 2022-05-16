@@ -467,6 +467,8 @@ public class RtspClient {
             listener.onRtspConnected(sdpInfo);
 
             if (sdpInfo.videoTrack != null ||  sdpInfo.audioTrack != null) {
+                if (digestRealmNonce != null)
+                    authToken = getDigestAuthHeader(username, password, hasCapability(RTSP_CAPABILITY_GET_PARAMETER, capabilities) ? "GET_PARAMETER" : "OPTIONS", uriRtsp, digestRealmNonce.first, digestRealmNonce.second);
                 final String authTokenFinal = authToken;
                 final String sessionFinal = session;
                 RtspClientKeepAliveListener keepAliveListener = () -> {
@@ -505,8 +507,11 @@ public class RtspClient {
                             keepAliveListener);
                 } finally {
                     // Cleanup resources on server side
-                    if (hasCapability(RTSP_CAPABILITY_TEARDOWN, capabilities))
-                        sendTeardownCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, authTokenFinal, sessionFinal);
+                    if (hasCapability(RTSP_CAPABILITY_TEARDOWN, capabilities)) {
+                        if (digestRealmNonce != null)
+                            authToken = getDigestAuthHeader(username, password, "TEARDOWN", uriRtsp, digestRealmNonce.first, digestRealmNonce.second);
+                        sendTeardownCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, authToken, sessionFinal);
+                    }
                 }
 
             } else {
