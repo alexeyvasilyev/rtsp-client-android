@@ -23,9 +23,8 @@ android {
     defaultConfig {
         minSdkVersion min_sdk_version
         targetSdkVersion target_sdk_version
-        versionCode project_version_code
-        versionName project_version_name
     }
+    namespace 'com.alexvas.rtsp'
 }
 
 dependencies {

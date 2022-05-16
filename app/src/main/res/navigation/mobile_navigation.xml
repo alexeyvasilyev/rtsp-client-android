@@ -13,7 +13,7 @@
 
     <fragment
         android:id="@+id/navigation_logs"
-        android:name="info.hannes.logcat.LogcatFragment"
+        android:name="info.hannes.logcat.ui.LogcatFragment"
         android:label="@string/title_logs"
         tools:layout="@layout/fragment_log" />
 
