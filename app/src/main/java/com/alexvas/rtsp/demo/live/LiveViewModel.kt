@@ -67,7 +67,7 @@ class LiveViewModel : ViewModel() {
 
     fun saveParams(context: Context) {
         if (DEBUG) Log.v(TAG, "saveParams()")
-        val editor = context?.getSharedPreferences(LIVE_PARAMS_FILENAME, Context.MODE_PRIVATE).edit()
+        val editor = context.getSharedPreferences(LIVE_PARAMS_FILENAME, Context.MODE_PRIVATE).edit()
         editor.putString(RTSP_REQUEST_KEY, rtspRequest.value)
         editor.putString(RTSP_USERNAME_KEY, rtspUsername.value)
         editor.putString(RTSP_PASSWORD_KEY, rtspPassword.value)
