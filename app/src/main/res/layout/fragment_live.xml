@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView
+<androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -7,129 +7,57 @@
     android:layout_height="match_parent"
     tools:context=".live.LiveFragment">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="20dp">
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp">
-            <EditText
-                android:id="@+id/etRtspRequest"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="RTSP request"
-                android:inputType="textUri"/>
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp">
-            <EditText
-                android:id="@+id/etRtspUsername"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="RTSP username"/>
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            app:passwordToggleEnabled="true">
-            <EditText
-                android:id="@+id/etRtspPassword"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textPassword"
-                android:hint="RTSP password"/>
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:gravity="center"
-            android:orientation="horizontal">
-            <CheckBox
-                android:id="@+id/cbVideo"
-                android:text="Video"
-                android:checked="true"
-                android:layout_margin="10dp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-            <CheckBox
-                android:id="@+id/cbAudio"
-                android:text="Audio"
-                android:checked="false"
-                android:layout_margin="10dp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-
-            <CheckBox
-                android:id="@+id/cbDebug"
-                android:text="Debug"
-                android:checked="false"
-                android:layout_margin="20dp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-        </LinearLayout>
-
-        <Button
-            android:layout_marginTop="10dp"
+    <Button
             android:id="@+id/bnStartStop"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
             android:layout_marginBottom="10dp"
-            android:text="Start RTSP" />
+            android:text="Start RTSP"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintBottom_toTopOf="@+id/frameLayout"
+            app:layout_constraintTop_toTopOf="parent" />
 
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="300dp"
-            android:animateLayoutChanges="true">
-            <com.alexvas.rtsp.widget.RtspSurfaceView
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:id="@+id/svVideo" />
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@android:color/black"
-                android:id="@+id/vShutter" />
-            <ProgressBar
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:visibility="gone"
-                android:id="@+id/pbLoading"/>
-        </FrameLayout>
+    <FrameLayout
+        android:id="@+id/frameLayout"
+        android:layout_width="wrap_content"
+        android:layout_height="0dp"
+        android:animateLayoutChanges="true"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/tvStatus"
+        app:layout_constraintTop_toBottomOf="@+id/bnStartStop">
 
-        <LinearLayout
+        <com.alexvas.rtsp.widget.RtspSurfaceView
+            android:id="@+id/svVideo"
             android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <View
+            android:id="@+id/vShutter"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@android:color/black" />
+
+        <ProgressBar
+            android:id="@+id/pbLoading"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="5dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-            <Button
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                style="@style/Widget.Material3.Button.TextButton.Icon"
-                android:id="@+id/bnSnapshot"
-                android:enabled="false"
-                android:text="Photo"
-                app:icon="@drawable/ic_camera_black_24dp"/>
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:id="@+id/tvStatus"
-                android:gravity="end"/>
-        </LinearLayout>
+            android:layout_gravity="center"
+            android:visibility="gone" />
+    </FrameLayout>
 
-    </LinearLayout>
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="end"
+        tools:layout_editor_absoluteX="5dp"
+        tools:layout_editor_absoluteY="5dp"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/frameLayout"
+        app:layout_constraintBottom_toBottomOf="parent"/>
 
-</ScrollView>
+</androidx.constraintlayout.widget.ConstraintLayout>
