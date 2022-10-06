@@ -39,13 +39,13 @@ class LiveFragment : Fragment() {
 
         override fun onRtspStatusConnected() {
             binding.tvStatus.text = "RTSP connected"
-            binding.bnStartStop.text = "Stop RTSP"
+//            binding.bnStartStop.text = "Stop RTSP"
             binding.pbLoading.visibility = View.GONE
         }
 
         override fun onRtspStatusDisconnected() {
             binding.tvStatus.text = "RTSP disconnected"
-            binding.bnStartStop.text = "Start RTSP"
+//            binding.bnStartStop.text = "Start RTSP"
             binding.pbLoading.visibility = View.GONE
             binding.vShutter.visibility = View.VISIBLE
 //            binding.bnSnapshot.isEnabled = false
@@ -156,16 +156,16 @@ class LiveFragment : Fragment() {
 //                binding.etRtspPassword.setText(it)
 //        })
 //
-        binding.bnStartStop.setOnClickListener {
-            if (binding.svVideo.isStarted()) {
-                binding.svVideo.stop()
-            } else {
+//        binding.bnStartStop.setOnClickListener {
+//            if (binding.svVideo.isStarted()) {
+//                binding.svVideo.stop()
+//            } else {
                 val uri = Uri.parse("rtsp://192.168.1.201:554/11")
                 binding.svVideo.init(uri, "admin", "102973", "rtsp-client-android")
                 binding.svVideo.debug = false //binding.cbDebug.isChecked
                 binding.svVideo.start(true, true)
-            }
-        }
+//            }
+//        }
 //
 //        binding.bnSnapshot.setOnClickListener {
 //            val bitmap = getSnapshot()
