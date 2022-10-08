@@ -1,0 +1,63 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+    compileSdkVersion 26
+    defaultConfig {
+        minSdkVersion 21
+        targetSdkVersion 26
+
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    productFlavors {
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation 'com.android.support:appcompat-v7:26.1.0'
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'com.android.support.test:runner:1.0.1'
+    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
+
+    implementation 'com.squareup.okhttp3:okhttp:3.10.0'
+    implementation 'org.eclipse.ecf:org.apache.commons.codec:1.9.0.v20170208-1614'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+}
+
+ext {
+    bintrayRepo = 'Maven'
+    bintrayName = 'ONVIFCamera'
+    orgName = 'rvi'
+
+    publishedGroupId = 'com.rvirin.onvif'
+    artifact = 'onvifcamera'
+    libraryVersion = "1.1.9"
+
+    libraryName = 'ONVIFCamera'
+    libraryDescription = 'Library to ease the connection to a ONVIF Camera'
+
+    siteUrl = 'https://github.com/rvi/ONVIFCameraAndroid'
+    gitUrl = 'https://github.com/rvi/ONVIFCameraAndroid.git'
+
+    developerId = 'rvi'
+    developerName = 'Rémy Virin'
+    developerEmail = 'remy@virin.us'
+
+    licenseName = 'The MIT License'
+    licenseUrl = 'https://opensource.org/licenses/MIT'
+    allLicenses = ["MIT"]
+}
+
+//apply from: rootProject.file('gradle/install-v1.gradle')
+//apply from: rootProject.file('gradle/bintray-android-v1.gradle')
+repositories {
+    mavenCentral()
+}
