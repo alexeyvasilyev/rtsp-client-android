@@ -1,5 +1,15 @@
 <resources>
-    <string name="app_name">Rtsp demo</string>
-    <string name="title_live">Live</string>
+    <string name="app_name">IPCam</string>
+    <string name="string_live">\u2022 Live</string>
     <string name="title_logs">Logs</string>
+    <string name="title_activity_settings">SettingsActivity</string>
+
+    <!-- Preference Titles -->
+    <string name="rtsp_header">Camera RTSP Settings</string>
+
+    <!-- Messages Preferences -->
+    <string name="url_title">Stream</string>
+    <string name="username_title">Username</string>
+    <string name="password_title">Password</string>
+    <string name="test">test</string>
 </resources>
