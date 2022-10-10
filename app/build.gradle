@@ -57,4 +57,5 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:3.10.0'
     implementation project(':library-client-rtsp')
     implementation project(path: ':onvifcamera')
+    implementation 'androidx.preference:preference:1.1.+'
 }
