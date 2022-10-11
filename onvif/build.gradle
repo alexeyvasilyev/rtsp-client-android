@@ -1,0 +1,21 @@
+plugins {
+    id 'com.android.library'
+}
+
+apply from: '../constants.gradle'
+apply plugin: 'com.android.library'
+
+android {
+    compileSdkVersion compile_sdk_version
+
+    defaultConfig {
+        minSdkVersion min_sdk_version
+        targetSdkVersion target_sdk_version
+    }
+    namespace 'com.alexvas.rtsp'
+}
+
+dependencies {
+    implementation files('libs/ksoap2-android-assembly-3.6.4-jar-with-dependencies.jar')
+    implementation files('libs/ExKsoap2-1.0.3.1.jar')
+}
