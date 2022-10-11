@@ -57,7 +57,7 @@ open class RtspSurfaceView: SurfaceView {
     private val proxyClientListener = object: RtspClient.RtspClientListener {
 
         override fun onRtspConnecting() {
-            if (DEBUG) Log.v(TAG, "onRtspConnecting()")
+            if (DEBUG) Log.v(TAG, "onRtspConnecting..")
             uiHandler.post {
                 statusListener?.onRtspStatusConnecting()
             }
