@@ -54,5 +54,4 @@ dependencies {
     implementation "androidx.navigation:navigation-ui-ktx:${androidXNavigationVersion}"
     api "com.github.AppDevNext.Logcat:LogcatCoreLib:2.11.1"
     api "com.github.AppDevNext.Logcat:LogcatCoreUI:2.11.1"
-    implementation project(':library-client-rtsp')
 }
