@@ -18,7 +18,6 @@ import com.alexvas.utils.NetUtils
 import java.net.Socket
 import java.util.concurrent.atomic.AtomicBoolean
 
-
 open class RtspSurfaceView: SurfaceView {
 
     var debug: Boolean = false
