@@ -40,14 +40,14 @@ public class NetUtils {
         }
 
         /**
-         * @see javax.net.ssl.X509TrustManager#checkClientTrusted(X509Certificate[],String authType)
+         * @see X509TrustManager#checkClientTrusted(X509Certificate[],String authType)
          */
         public void checkClientTrusted(X509Certificate[] certificates, String authType)
         throws CertificateException {
         }
 
         /**
-         * @see javax.net.ssl.X509TrustManager#checkServerTrusted(X509Certificate[],String authType)
+         * @see X509TrustManager#checkServerTrusted(X509Certificate[],String authType)
          */
         public void checkServerTrusted(X509Certificate[] certificates, String authType)
         throws CertificateException {
@@ -61,7 +61,7 @@ public class NetUtils {
         }
 
         /**
-         * @see javax.net.ssl.X509TrustManager#getAcceptedIssuers()
+         * @see X509TrustManager#getAcceptedIssuers()
          */
         public X509Certificate[] getAcceptedIssuers() {
             return mAcceptedIssuers;

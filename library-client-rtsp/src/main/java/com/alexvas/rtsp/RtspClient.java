@@ -227,7 +227,7 @@ public class RtspClient {
     private final @Nullable String password;
     private final @Nullable String userAgent;
 
-    private RtspClient(@NonNull RtspClient.Builder builder) {
+    private RtspClient(@NonNull Builder builder) {
         rtspSocket = builder.rtspSocket;
         uriRtsp = builder.uriRtsp;
         exitFlag = builder.exitFlag;
