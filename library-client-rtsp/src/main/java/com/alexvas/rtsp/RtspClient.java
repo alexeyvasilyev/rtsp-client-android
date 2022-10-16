@@ -9,8 +9,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.alexvas.rtsp.parser.AacParser;
-import com.alexvas.rtsp.parser.AudioParser;
-import com.alexvas.rtsp.parser.PcmuParser;
 import com.alexvas.rtsp.parser.RtpParser;
 import com.alexvas.rtsp.parser.VideoRtpParser;
 import com.alexvas.utils.NetUtils;
@@ -192,7 +190,6 @@ public class RtspClient {
 
     public static final int AUDIO_CODEC_UNKNOWN = -1;
     public static final int AUDIO_CODEC_AAC = 0;
-    public static final int AUDIO_CODEC_PCMA = 1;
 
     public static class AudioTrack extends Track {
         public int audioCodec = AUDIO_CODEC_UNKNOWN;
@@ -364,7 +361,7 @@ public class RtspClient {
                     if (!requestAudio)
                         sdpInfo.audioTrack = null;
                     // Only AAC supported
-                    if (sdpInfo.audioTrack != null && sdpInfo.audioTrack.audioCodec == AUDIO_CODEC_UNKNOWN) {
+                    if (sdpInfo.audioTrack != null && sdpInfo.audioTrack.audioCodec != AUDIO_CODEC_AAC) {
                         Log.e(TAG_DEBUG, "Unknown RTSP audio codec (" + sdpInfo.audioTrack.audioCodec + ") specified in SDP");
                         sdpInfo.audioTrack = null;
                     }
@@ -585,7 +582,9 @@ public class RtspClient {
         byte[] data = new byte[0]; // Usually not bigger than MTU = 15KB
 
         final VideoRtpParser videoParser = new VideoRtpParser();
-        final AudioParser audioParser = determineAudioParse(sdpInfo);
+        final AacParser audioParser = (sdpInfo.audioTrack != null && sdpInfo.audioTrack.audioCodec == AUDIO_CODEC_AAC ?
+                new AacParser(sdpInfo.audioTrack.mode) :
+                null);
 
         byte[] nalUnitSps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.sps : null);
         byte[] nalUnitPps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.pps : null);
@@ -672,21 +671,6 @@ public class RtspClient {
                     Log.w(TAG, "Invalid RTP payload type " + header.payloadType);
             }
         }
-    }
-
-    private static AudioParser determineAudioParse(SdpInfo sdpInfo) {
-        AudioParser audioParser = null;
-
-        if (sdpInfo.audioTrack != null) {
-            switch (sdpInfo.audioTrack.audioCodec) {
-                case AUDIO_CODEC_AAC:
-                    audioParser = new AacParser(sdpInfo.audioTrack.mode);
-                case AUDIO_CODEC_PCMA:
-                    audioParser = new PcmuParser();
-            }
-        }
-
-        return audioParser;
     }
 
     private static void sendSimpleCommand(
@@ -955,9 +939,6 @@ public class RtspClient {
                                     if (values.length > 1) {
                                         if ("mpeg4-generic".equalsIgnoreCase(values[0])) {
                                             track.audioCodec = AUDIO_CODEC_AAC;
-                                        }
-                                        else if ("PCMA".equalsIgnoreCase(values[0])) {
-                                            track.audioCodec = AUDIO_CODEC_PCMA;
                                         } else {
                                             Log.w(TAG, "Unknown audio codec \"" + values[0] + "\"");
                                             track.audioCodec = AUDIO_CODEC_UNKNOWN;

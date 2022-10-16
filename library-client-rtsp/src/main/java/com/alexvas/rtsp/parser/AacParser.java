@@ -15,7 +15,7 @@ import com.google.android.exoplayer2.util.ParsableByteArray;
 //         +---------+-----------+-----------+---------------+
 //
 //                   <----------RTP Packet Payload----------->
-public class AacParser implements AudioParser {
+public class AacParser {
 
     private static final String TAG = AacParser.class.getSimpleName();
     private static final boolean DEBUG = false;
@@ -39,7 +39,7 @@ public class AacParser implements AudioParser {
     private boolean completeFrameIndicator = true;
 
     public AacParser(@NonNull String aacMode) {
-        _aacMode = "AAC-lbr".equalsIgnoreCase(aacMode) ? MODE_LBR : MODE_HBR;
+        _aacMode = aacMode.equalsIgnoreCase("AAC-lbr") ? MODE_LBR : MODE_HBR;
 
         headerScratchBits = new ParsableBitArray();
         headerScratchBytes = new ParsableByteArray();
