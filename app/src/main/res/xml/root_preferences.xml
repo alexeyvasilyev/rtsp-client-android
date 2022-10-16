@@ -18,6 +18,11 @@
             app:title="@string/password_title"
             app:useSimpleSummaryProvider="true" />
 
+        <EditTextPreference
+            app:key="onvif"
+            app:title="@string/onvif_title"
+            app:useSimpleSummaryProvider="true" />
+
     </PreferenceCategory>
 
 </PreferenceScreen>

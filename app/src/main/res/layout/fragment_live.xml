@@ -55,6 +55,7 @@
             android:enabled="false"
             android:src="@drawable/baseline_volume_up_white_24"
             app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintLeft_toLeftOf="parent"
             app:tint="@color/colorDisabled" />
 
@@ -66,8 +67,79 @@
             android:background="@android:color/transparent"
             android:src="@drawable/baseline_photo_camera_white_24"
             app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintLeft_toRightOf="@id/muteButton"
             app:tint="@color/colorDisabled" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent">
+
+            <Button
+                android:id="@+id/preset1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:text="1"
+                android:textColor="@color/colorDisabled" />
+
+            <Button
+                android:id="@+id/preset2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:text="2"
+                android:textColor="@color/colorDisabled" />
+
+            <Button
+                android:id="@+id/preset3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:text="3"
+                android:textColor="@color/colorDisabled" />
+
+            <Button
+                android:id="@+id/preset4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:text="4"
+                android:textColor="@color/colorDisabled" />
+
+            <Button
+                android:id="@+id/preset5"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:text="5"
+                android:textColor="@color/colorDisabled" />
+
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tvStatus"
@@ -80,8 +152,8 @@
             android:textAppearance="@style/TextAppearance.AppCompat.Medium"
             android:textColor="@color/colorDisabled"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintRight_toLeftOf="@id/settingsButton"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintRight_toLeftOf="@id/settingsButton"/>
 
         <ImageButton
             android:id="@+id/settingsButton"
@@ -90,6 +162,7 @@
             android:background="@android:color/transparent"
             android:src="@drawable/baseline_settings_white_24"
             app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintRight_toRightOf="parent"
             app:tint="@color/colorEnabled" />
     </androidx.constraintlayout.widget.ConstraintLayout>

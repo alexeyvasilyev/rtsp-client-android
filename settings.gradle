@@ -1,4 +1,3 @@
 include ':library-client-rtsp'
-include ':onvifcamera'
 include ':app'
 include ':onvif'

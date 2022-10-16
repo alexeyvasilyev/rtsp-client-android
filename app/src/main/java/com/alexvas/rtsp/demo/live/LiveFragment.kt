@@ -12,6 +12,7 @@ import android.view.LayoutInflater
 import android.view.PixelCopy
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
@@ -22,11 +23,15 @@ import com.alexvas.rtsp.demo.R
 import com.alexvas.rtsp.demo.SettingsActivity
 import com.alexvas.rtsp.demo.databinding.FragmentLiveBinding
 import com.alexvas.rtsp.widget.RtspSurfaceView
+import net.petrocik.onvif.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 
 @SuppressLint("LogNotTimber")
 class LiveFragment : Fragment() {
+
+    private var profileToken = "MainStreamProfileToken";
+    private lateinit var defaultPTZSpeed: PTZSpeed;
 
     private lateinit var binding: FragmentLiveBinding
 
@@ -37,6 +42,11 @@ class LiveFragment : Fragment() {
             enable(binding.muteButton, false)
             enable(binding.snapShotButton, false)
             enable(binding.tvStatus, false)
+            enable(binding.preset1, false);
+            enable(binding.preset2, false);
+            enable(binding.preset3, false);
+            enable(binding.preset4, false);
+            enable(binding.preset5, false);
         }
 
         override fun onRtspStatusConnected() {
@@ -48,6 +58,11 @@ class LiveFragment : Fragment() {
             enable(binding.muteButton, false)
             enable(binding.snapShotButton, false)
             enable(binding.tvStatus, false)
+            enable(binding.preset1, false);
+            enable(binding.preset2, false);
+            enable(binding.preset3, false);
+            enable(binding.preset4, false);
+            enable(binding.preset5, false);
         }
 
         override fun onRtspStatusFailedUnauthorized() {
@@ -118,10 +133,6 @@ class LiveFragment : Fragment() {
 
         binding.svVideo.setStatusListener(rtspStatusListener)
 
-//        currentDevice =  OnvifDevice("192.168.1.201:8080", "admin", "102973")
-//        currentDevice.listener = this
-//        currentDevice.getDeviceInformation()
-
         binding.settingsButton.setOnClickListener {
             val myIntent = Intent(context, SettingsActivity::class.java)
             startActivity(myIntent)
@@ -144,6 +155,27 @@ class LiveFragment : Fragment() {
                 Toast.makeText(requireContext(), "Snapshot failed", Toast.LENGTH_LONG).show()
             }
         }
+
+        binding.preset1.setOnClickListener( {
+            gotoPreset(1);
+        })
+
+        binding.preset2.setOnClickListener( {
+            gotoPreset(2);
+        })
+
+        binding.preset3.setOnClickListener( {
+            gotoPreset(3);
+        })
+
+        binding.preset4.setOnClickListener( {
+            gotoPreset(4);
+        })
+
+        binding.preset5.setOnClickListener( {
+            gotoPreset(5);
+        })
+
         return binding.root
     }
 
@@ -157,13 +189,16 @@ class LiveFragment : Fragment() {
         val username = sharedPreferences.getString("username", null)
         val password = sharedPreferences.getString("password", null)
 
+        getPtzConfiguration();
+
         if (url == null) {
             val myIntent = Intent(context, SettingsActivity::class.java)
             startActivity(myIntent)
             return;
         }
 
-        binding.svVideo.init(url, username, password, "rtsp-client-android")
+        var uri = Uri.parse(url);
+        binding.svVideo.init(uri, username, password, "rtsp-client-android")
         binding.svVideo.start(true, true)
     }
 
@@ -182,19 +217,48 @@ class LiveFragment : Fragment() {
         private const val DEBUG = true
     }
 
-//    override fun requestPerformed(response: OnvifResponse) {
-//        Log.d("ONVIF", "Request ${response.request.type} performed.")
-//        Log.d("ONVIF","Succeeded: ${response.success}, message: ${response.parsingUIMessage}")
-//
-//        if (response.request.type == OnvifRequest.Type.GetDeviceInformation) {
-//            currentDevice.getProfiles()
-//
-//        } else if (response.request.type == OnvifRequest.Type.GetProfiles) {
-//            currentDevice.getStreamURI()
-//
-//        } else if (response.request.type == OnvifRequest.Type.GetStreamURI) {
-//            Log.d("ONVIF", "Stream URI retrieved: ${currentDevice.rtspURI}")
-//        }
-//    }
+    private fun getPtzConfiguration() {
+
+        val sharedPreferences =
+            PreferenceManager.getDefaultSharedPreferences(context /* Activity context */)
+        val onvif = sharedPreferences.getString("onvif", null)
+
+        if (onvif == null)
+            return
+
+        var ptzBinding = PTZBinding( object: IServiceEvents {
+            override fun Starting() {};
+            override fun Completed(result: OperationResult<*>?) {
+                var res = result!!.Result;
+                when (res) {
+                    is GetConfigurationsResponse -> {
+                        defaultPTZSpeed = res[0].DefaultPTZSpeed;
+
+                        enable(binding.preset1, true);
+                        enable(binding.preset2, true);
+                        enable(binding.preset3, true);
+                        enable(binding.preset4, true);
+                        enable(binding.preset5, true);
+                    }
+                }
+            }}, onvif );
+
+        ptzBinding.GetConfigurationsAsync();
+
+    }
+    private fun gotoPreset(preset: Int) {
+        val sharedPreferences =
+            PreferenceManager.getDefaultSharedPreferences(context /* Activity context */)
+        val onvif = sharedPreferences.getString("onvif", null)
+
+        if (onvif == null)
+            return
+
+        var ptzBinding = PTZBinding(object: IServiceEvents {
+            override fun Starting() {};
+            override fun Completed(result: OperationResult<*>?) {}}, onvif )
+        ptzBinding.GotoPresetAsync(profileToken, "Preset00" + preset, defaultPTZSpeed);
+
+    }
 
 }
