@@ -32,6 +32,7 @@ class LiveFragment : Fragment() {
 
     private var profileToken = "MainStreamProfileToken";
     private lateinit var defaultPTZSpeed: PTZSpeed;
+    private var presets = mutableListOf<String>();
 
     private lateinit var binding: FragmentLiveBinding
 
@@ -240,10 +241,16 @@ class LiveFragment : Fragment() {
                         enable(binding.preset4, true);
                         enable(binding.preset5, true);
                     }
+                    is GetPresetsResponse -> {
+                        presets.clear();
+                        for (i in 0..4) {
+                            presets.add(res[i].token);
+                        }                    }
                 }
             }}, onvif );
 
         ptzBinding.GetConfigurationsAsync();
+        ptzBinding.GetPresetsAsync(profileToken);
 
     }
     private fun gotoPreset(preset: Int) {
@@ -257,7 +264,7 @@ class LiveFragment : Fragment() {
         var ptzBinding = PTZBinding(object: IServiceEvents {
             override fun Starting() {};
             override fun Completed(result: OperationResult<*>?) {}}, onvif )
-        ptzBinding.GotoPresetAsync(profileToken, "Preset00" + preset, defaultPTZSpeed);
+        ptzBinding.GotoPresetAsync(profileToken, presets[preset-1], defaultPTZSpeed);
 
     }
 
