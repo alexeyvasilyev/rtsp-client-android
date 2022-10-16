@@ -53,13 +53,13 @@ class LiveFragment : Fragment() {
         override fun onRtspStatusFailedUnauthorized() {
             if (context == null) return
             binding.pbLoading.visibility = View.GONE
-            Toast.makeText(context, binding.tvStatus.text , Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Authentication Failure" , Toast.LENGTH_LONG).show()
         }
 
         override fun onRtspStatusFailed(message: String?) {
             if (context == null) return
             binding.pbLoading.visibility = View.GONE
-            Toast.makeText(context, binding.tvStatus.text , Toast.LENGTH_LONG).show()
+            Toast.makeText(context, message , Toast.LENGTH_LONG).show()
         }
 
         override fun onRtspFirstFrameRendered() {
