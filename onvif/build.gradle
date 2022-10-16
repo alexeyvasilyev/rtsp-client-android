@@ -12,10 +12,10 @@ android {
         minSdkVersion min_sdk_version
         targetSdkVersion target_sdk_version
     }
-    namespace 'com.alexvas.rtsp'
+    namespace 'net.petrocik.onvif'
 }
 
 dependencies {
-    implementation files('libs/ksoap2-android-assembly-3.6.4-jar-with-dependencies.jar')
-    implementation files('libs/ExKsoap2-1.0.3.1.jar')
+    api 'com.google.code.ksoap2-android:ksoap2-android:3.6.4'
+    api files('libs/ExKsoap2-1.0.3.1.jar')
 }
