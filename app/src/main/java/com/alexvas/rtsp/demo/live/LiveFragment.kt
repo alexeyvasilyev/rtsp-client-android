@@ -30,40 +30,33 @@ import java.util.concurrent.atomic.AtomicBoolean
 @SuppressLint("LogNotTimber")
 class LiveFragment : Fragment() {
 
-    private var profileToken = "MainStreamProfileToken";
-    private lateinit var defaultPTZSpeed: PTZSpeed;
-    private var presets = mutableListOf<String>();
+    private var profileToken = "MainStreamProfileToken"
+    private lateinit var defaultPTZSpeed: PTZSpeed
+    private var presets = mutableListOf<String>()
+    private var connected = false
 
     private lateinit var binding: FragmentLiveBinding
 
     private val rtspStatusListener = object: RtspSurfaceView.RtspStatusListener {
         override fun onRtspStatusConnecting() {
+            connected = false
+
             binding.pbLoading.visibility = View.VISIBLE
             binding.vShutter.visibility = View.VISIBLE
-            enable(binding.muteButton, false)
-            enable(binding.snapShotButton, false)
-            enable(binding.tvStatus, false)
-            enable(binding.preset1, false);
-            enable(binding.preset2, false);
-            enable(binding.preset3, false);
-            enable(binding.preset4, false);
-            enable(binding.preset5, false);
+            enableActions(false);
+            enablePresets(false);
         }
 
         override fun onRtspStatusConnected() {
         }
 
         override fun onRtspStatusDisconnected() {
+            connected = false
+
             binding.pbLoading.visibility = View.GONE
             binding.vShutter.visibility = View.VISIBLE
-            enable(binding.muteButton, false)
-            enable(binding.snapShotButton, false)
-            enable(binding.tvStatus, false)
-            enable(binding.preset1, false);
-            enable(binding.preset2, false);
-            enable(binding.preset3, false);
-            enable(binding.preset4, false);
-            enable(binding.preset5, false);
+            enableActions(false);
+            enablePresets(false);
         }
 
         override fun onRtspStatusFailedUnauthorized() {
@@ -79,12 +72,29 @@ class LiveFragment : Fragment() {
         }
 
         override fun onRtspFirstFrameRendered() {
+            connected = true
+
             binding.vShutter.visibility = View.GONE
             binding.pbLoading.visibility = View.GONE
-            enable(binding.muteButton, true)
-            enable(binding.snapShotButton, true)
-            enable(binding.tvStatus, true)
+            enableActions(true)
+            enablePresets(true)
         }
+    }
+
+    private fun enablePresets(enabled: Boolean){
+        if (!enabled || connected && !presets.isNullOrEmpty()) {
+            enable(binding.preset1, enabled);
+            enable(binding.preset2, enabled);
+            enable(binding.preset3, enabled);
+            enable(binding.preset4, enabled);
+            enable(binding.preset5, enabled);
+        }
+    }
+
+    private fun enableActions(enabled: Boolean) {
+        enable(binding.muteButton, enabled)
+        enable(binding.snapShotButton, enabled)
+        enable(binding.tvStatus, enabled)
     }
 
     private fun enable(imageButton: ImageButton, enabled: Boolean) {
@@ -92,8 +102,17 @@ class LiveFragment : Fragment() {
             return;
 
         imageButton.isEnabled = enabled
-        val statusColor = if (imageButton.isEnabled) R.color.colorEnabled else R.color.colorDisabled
+        val statusColor = if (imageButton.isEnabled) R.color.colorPrimary else R.color.colorPrimaryDisabled
         imageButton.imageTintList = ResourcesCompat.getColorStateList(resources, statusColor, null)
+    }
+
+    private fun enable(textButton: Button, enabled: Boolean) {
+        if (context == null)
+            return;
+
+        textButton.isEnabled = enabled
+        val statusColor = if (textButton.isEnabled) R.color.colorPrimary else R.color.colorPrimaryDisabled
+        textButton.backgroundTintList = ResourcesCompat.getColorStateList(resources, statusColor, null)
     }
 
     private fun enable(textView: TextView, enabled: Boolean) {
@@ -101,7 +120,7 @@ class LiveFragment : Fragment() {
             return;
 
         textView.isEnabled = enabled
-        val statusColor = if (textView.isEnabled) R.color.colorEnabled else R.color.colorDisabled
+        val statusColor = if (textView.isEnabled) R.color.colorPrimary else R.color.colorPrimaryDisabled
         textView.setTextColor(ResourcesCompat.getColor(resources, statusColor, null))
     }
 
@@ -142,7 +161,7 @@ class LiveFragment : Fragment() {
         binding.muteButton.setOnClickListener {
             if (it is ImageButton) {
                 binding.svVideo.muteAudio = !binding.svVideo.muteAudio;
-                val statusColor = if (binding.svVideo.muteAudio) R.color.colorDisabled else R.color.colorEnabled
+                val statusColor = if (binding.svVideo.muteAudio) R.color.colorPrimaryDisabled else R.color.colorPrimary
                 it.imageTintList = ResourcesCompat.getColorStateList(resources, statusColor, null)
             }
         }
@@ -208,6 +227,9 @@ class LiveFragment : Fragment() {
         if (DEBUG) Log.v(TAG, "onPause(), started:$started")
         super.onPause()
 
+        enablePresets(false)
+        enableActions(false)
+
         if (started) {
             binding.svVideo.stop()
         }
@@ -221,11 +243,8 @@ class LiveFragment : Fragment() {
     private fun getPtzConfiguration() {
 
         val sharedPreferences =
-            PreferenceManager.getDefaultSharedPreferences(context /* Activity context */)
-        val onvif = sharedPreferences.getString("onvif", null)
-
-        if (onvif == null)
-            return
+            PreferenceManager.getDefaultSharedPreferences(context)
+        val onvif = sharedPreferences.getString("onvif", null) ?: return
 
         var ptzBinding = PTZBinding( object: IServiceEvents {
             override fun Starting() {};
@@ -234,25 +253,38 @@ class LiveFragment : Fragment() {
                 when (res) {
                     is GetConfigurationsResponse -> {
                         defaultPTZSpeed = res[0].DefaultPTZSpeed;
-
-                        enable(binding.preset1, true);
-                        enable(binding.preset2, true);
-                        enable(binding.preset3, true);
-                        enable(binding.preset4, true);
-                        enable(binding.preset5, true);
+                        this@LiveFragment.getPresets();
                     }
-                    is GetPresetsResponse -> {
-                        presets.clear();
-                        for (i in 0..4) {
-                            presets.add(res[i].token);
-                        }                    }
                 }
             }}, onvif );
 
         ptzBinding.GetConfigurationsAsync();
-        ptzBinding.GetPresetsAsync(profileToken);
 
     }
+
+    private fun getPresets() {
+        val sharedPreferences =
+            PreferenceManager.getDefaultSharedPreferences(context)
+        val onvif = sharedPreferences.getString("onvif", null) ?: return
+
+        var ptzBinding = PTZBinding( object: IServiceEvents {
+            override fun Starting() {};
+            override fun Completed(result: OperationResult<*>?) {
+                var res = result!!.Result;
+                when (res) {
+                    is GetPresetsResponse -> {
+                        presets.clear();
+                        for (i in 0..4) {
+                            presets.add(res[i].token);
+                        }
+                        enablePresets(true);
+                    }
+                }
+            }}, onvif );
+
+        ptzBinding.GetPresetsAsync(profileToken);
+    }
+
     private fun gotoPreset(preset: Int) {
         val sharedPreferences =
             PreferenceManager.getDefaultSharedPreferences(context /* Activity context */)

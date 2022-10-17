@@ -49,6 +49,7 @@
 
         <ImageButton
             android:id="@+id/muteButton"
+            style="@style/AppIconButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@android:color/transparent"
@@ -56,20 +57,18 @@
             android:src="@drawable/baseline_volume_up_white_24"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintLeft_toLeftOf="parent"
-            app:tint="@color/colorDisabled" />
+            app:layout_constraintLeft_toLeftOf="parent"/>
 
         <ImageButton
             android:id="@+id/snapShotButton"
+            style="@style/AppIconButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginLeft="24dp"
             android:background="@android:color/transparent"
             android:src="@drawable/baseline_photo_camera_white_24"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintLeft_toRightOf="@id/muteButton"
-            app:tint="@color/colorDisabled" />
+            app:layout_constraintTop_toTopOf="parent" />
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -81,63 +80,43 @@
 
             <Button
                 android:id="@+id/preset1"
+                style="@style/AppButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp"
-                android:text="1"
-                android:textColor="@color/colorDisabled" />
+                android:text="1" />
 
             <Button
                 android:id="@+id/preset2"
+                style="@style/AppButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp"
-                android:text="2"
-                android:textColor="@color/colorDisabled" />
+                android:text="2" />
 
             <Button
                 android:id="@+id/preset3"
+                style="@style/AppButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp"
-                android:text="3"
-                android:textColor="@color/colorDisabled" />
+                android:text="3"/>
 
             <Button
                 android:id="@+id/preset4"
+                style="@style/AppButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp"
-                android:text="4"
-                android:textColor="@color/colorDisabled" />
+                android:text="4" />
 
             <Button
                 android:id="@+id/preset5"
+                style="@style/AppButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp"
-                android:text="5"
-                android:textColor="@color/colorDisabled" />
+                android:text="5"/>
 
         </LinearLayout>
 
@@ -145,26 +124,25 @@
             android:id="@+id/tvStatus"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginRight="24dp"
             android:enabled="false"
             android:gravity="end"
             android:text="@string/string_live"
             android:textAppearance="@style/TextAppearance.AppCompat.Medium"
-            android:textColor="@color/colorDisabled"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintRight_toLeftOf="@id/settingsButton"/>
-
-        <ImageButton
-            android:id="@+id/settingsButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@android:color/transparent"
-            android:src="@drawable/baseline_settings_white_24"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintRight_toRightOf="parent"
-            app:tint="@color/colorEnabled" />
+            app:layout_constraintTop_toTopOf="parent" />
+
     </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <ImageButton
+        android:id="@+id/settingsButton"
+        style="@style/AppIconButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        android:src="@drawable/baseline_settings_white_24"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintRight_toRightOf="parent"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
