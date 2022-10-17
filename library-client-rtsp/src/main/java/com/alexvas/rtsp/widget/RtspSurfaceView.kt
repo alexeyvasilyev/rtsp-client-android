@@ -23,7 +23,7 @@ open class RtspSurfaceView: SurfaceView {
 
     var debug: Boolean = false
 
-    private var url: String? = null
+    private lateinit var uri: Uri
     private var username: String? = null
     private var password: String? = null
     private var userAgent: String? = null
@@ -167,13 +167,13 @@ open class RtspSurfaceView: SurfaceView {
         holder.addCallback(surfaceCallback)
     }
 
-    fun init(url: String, username: String?, password: String?) {
-        init(url, username, password, null)
+    fun init(uri: Uri, username: String?, password: String?) {
+        init(uri, username, password, null)
     }
 
-    fun init(url: String, username: String?, password: String?, userAgent: String?) {
-        if (DEBUG) Log.v(TAG, "init(url='$url', username=$username, password=$password, userAgent='$userAgent')")
-        this.url = url
+    fun init(uri: Uri, username: String?, password: String?, userAgent: String?) {
+        if (DEBUG) Log.v(TAG, "init(uri='$uri', username=$username, password=$password, userAgent='$userAgent')")
+        this.uri = uri
         this.username = username
         this.password = password
         this.userAgent = userAgent
@@ -185,7 +185,7 @@ open class RtspSurfaceView: SurfaceView {
         this.requestVideo = requestVideo
         this.requestAudio = requestAudio
         rtspThread = RtspThread()
-        rtspThread!!.name = "RTSP IO thread [${url}]"
+        rtspThread!!.name = "RTSP IO thread [${getUriName()}]"
         rtspThread!!.start()
     }
 
@@ -211,15 +211,14 @@ open class RtspSurfaceView: SurfaceView {
 
         override fun run() {
             onRtspClientStarted()
-            val uri = Uri.parse(url);
-            var port = if (uri == null || uri.port == -1) DEFAULT_RTSP_PORT else uri.port
+            val port = if (uri.port == -1) DEFAULT_RTSP_PORT else uri.port
             try {
-                if (DEBUG) Log.d(TAG, "Connecting to ${uri?.host.toString()}:$port...")
+                if (DEBUG) Log.d(TAG, "Connecting to ${uri.host.toString()}:$port...")
 
-                val socket: Socket = if (uri?.scheme?.lowercase() == "rtsps")
-                    NetUtils.createSslSocketAndConnect(uri?.host.toString(), port, 5000)
+                val socket: Socket = if (uri.scheme?.lowercase() == "rtsps")
+                    NetUtils.createSslSocketAndConnect(uri.host.toString(), port, 5000)
                 else
-                    NetUtils.createSocketAndConnect(uri?.host.toString(), port, 5000)
+                    NetUtils.createSocketAndConnect(uri.host.toString(), port, 5000)
 
                 // Blocking call until stopped variable is true or connection failed
                 val rtspClient = RtspClient.Builder(socket, uri.toString(), rtspStopped, proxyClientListener)
@@ -261,14 +260,14 @@ open class RtspSurfaceView: SurfaceView {
             Log.i(TAG, "Starting video decoder with mime type \"$videoMimeType\"")
             videoDecodeThread = VideoDecodeThread(
                 holder.surface, videoMimeType, surfaceWidth, surfaceHeight, videoFrameQueue, onFrameRenderedListener)
-            videoDecodeThread!!.name = "RTSP video thread [${url}]"
+            videoDecodeThread!!.name = "RTSP video thread [${getUriName()}]"
             videoDecodeThread!!.start()
         }
         if (audioMimeType.isNotEmpty() /*&& checkAudio!!.isChecked*/) {
             Log.i(TAG, "Starting audio decoder with mime type \"$audioMimeType\"")
             audioDecodeThread = AudioDecodeThread(
                 audioMimeType, audioSampleRate, audioChannelCount, audioCodecConfig, audioFrameQueue)
-            audioDecodeThread!!.name = "RTSP audio thread [${url}]"
+            audioDecodeThread!!.name = "RTSP audio thread [${getUriName()}]"
             audioDecodeThread!!.start()
         }
     }
@@ -286,6 +285,11 @@ open class RtspSurfaceView: SurfaceView {
         videoDecodeThread = null
         audioDecodeThread?.stopAsync()
         audioDecodeThread = null
+    }
+
+    private fun getUriName(): String {
+        val port = if (uri.port == -1) DEFAULT_RTSP_PORT else uri.port
+        return "${uri.host.toString()}:$port"
     }
 
     companion object {
