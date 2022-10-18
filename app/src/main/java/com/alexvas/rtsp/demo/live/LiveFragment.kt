@@ -8,10 +8,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
-import android.view.LayoutInflater
-import android.view.PixelCopy
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
 import android.widget.Button
 import android.widget.ImageButton
 import android.widget.TextView
@@ -203,6 +200,8 @@ class LiveFragment : Fragment() {
         if (DEBUG) Log.v(TAG, "onResume()")
         super.onResume()
 
+        getConfiguration();
+
         val sharedPreferences =
             PreferenceManager.getDefaultSharedPreferences(context /* Activity context */)
         val url = sharedPreferences.getString("url", null)
@@ -259,6 +258,38 @@ class LiveFragment : Fragment() {
             }}, onvif );
 
         ptzBinding.GetConfigurationsAsync();
+
+    }
+
+    private fun getConfiguration() {
+
+        val sharedPreferences =
+            PreferenceManager.getDefaultSharedPreferences(context)
+        val onvif = sharedPreferences.getString("onvif", null) ?: return
+
+        var mediaBinding = MediaBinding( object: IServiceEvents {
+            override fun Starting() {};
+            override fun Completed(result: OperationResult<*>?) {
+                var res = result!!.Result;
+                when (res) {
+                    is Profile -> {
+                        var videoResolution = res.VideoEncoderConfiguration.Resolution
+                        var decorView = this@LiveFragment.activity?.window?.decorView
+
+                        var videoRatio =  videoResolution.Height.toDouble() / videoResolution.Width.toDouble()
+                        if (decorView?.height == null || decorView?.width == null)
+                            return
+
+                        var viewRatio =  Math.min(decorView.height.toDouble(), decorView.width.toDouble()) / Math.max(decorView.height.toDouble(), decorView.width.toDouble())
+                        if (videoRatio > viewRatio)
+                            binding.svVideo.layoutParams.height = (decorView.width * viewRatio).toInt();
+                        else
+                            binding.svVideo.layoutParams.height = (decorView.width * videoRatio).toInt();
+                    }
+                }
+            }}, onvif );
+
+        mediaBinding.GetProfileAsync(profileToken);
 
     }
 
