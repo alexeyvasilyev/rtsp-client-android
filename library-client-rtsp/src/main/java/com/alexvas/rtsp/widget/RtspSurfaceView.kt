@@ -47,7 +47,7 @@ open class RtspSurfaceView: SurfaceView {
     interface RtspStatusListener {
         fun onRtspStatusConnecting()
         fun onRtspStatusConnected()
-        fun onRtspStatusDisconnected()
+        fun onRtspStatusDisconnected(message: String?)
         fun onRtspStatusFailedUnauthorized()
         fun onRtspStatusFailed(message: String?)
         fun onRtspFirstFrameRendered()
@@ -108,10 +108,10 @@ open class RtspSurfaceView: SurfaceView {
             if (length > 0) audioFrameQueue.push(FrameQueue.Frame(data, offset, length, timestamp,context))
         }
 
-        override fun onRtspDisconnected() {
+        override fun onRtspDisconnected(message: String?) {
             if (DEBUG) Log.v(TAG, "onRtspDisconnected()")
             uiHandler.post {
-                statusListener?.onRtspStatusDisconnected()
+                statusListener?.onRtspStatusDisconnected(message)
             }
         }
 
@@ -274,7 +274,7 @@ open class RtspSurfaceView: SurfaceView {
 
     private fun onRtspClientStopped() {
         if (DEBUG) Log.v(TAG, "onRtspClientStopped()")
-        uiHandler.post { statusListener?.onRtspStatusDisconnected() }
+        uiHandler.post { statusListener?.onRtspStatusDisconnected("onRtspClientStopped") }
         stopDecoders()
         rtspThread = null
     }

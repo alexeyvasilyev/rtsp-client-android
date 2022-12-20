@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Message
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
@@ -43,8 +44,8 @@ class LiveFragment : Fragment() {
             binding.pbLoading.visibility = View.GONE
         }
 
-        override fun onRtspStatusDisconnected() {
-            binding.tvStatus.text = "RTSP disconnected"
+        override fun onRtspStatusDisconnected(message: String?) {
+            binding.tvStatus.text = "RTSP disconnected $message"
             binding.bnStartStop.text = "Start RTSP"
             binding.pbLoading.visibility = View.GONE
             binding.vShutter.visibility = View.VISIBLE
