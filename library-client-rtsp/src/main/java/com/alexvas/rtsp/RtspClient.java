@@ -518,7 +518,7 @@ public class RtspClient {
                 listener.onRtspFailed("No tracks found. RTSP server issue.");
             }
 
-            listener.onRtspDisconnected("input stream block end call");
+          //  listener.onRtspDisconnected("input stream block end call");
         } catch (UnauthorizedException e) {
             e.printStackTrace();
             listener.onRtspFailedUnauthorized();
