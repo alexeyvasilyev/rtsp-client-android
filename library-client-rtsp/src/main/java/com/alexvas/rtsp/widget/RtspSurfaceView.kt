@@ -235,7 +235,7 @@ open class RtspSurfaceView: SurfaceView {
         }
     }
 
-    fun setStatusListener(listener: RtspStatusListener) {
+    fun setStatusListener(listener: RtspStatusListener?) {
         if (DEBUG) Log.v(TAG, "setStatusListener()")
         this.statusListener = listener
     }
