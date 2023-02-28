@@ -4,6 +4,7 @@ import android.media.*
 import android.util.Log
 import java.nio.ByteBuffer
 
+
 class AudioDecodeThread (
         private val mimeType: String,
         private val sampleRate: Int,
@@ -27,10 +28,66 @@ class AudioDecodeThread (
         val decoder = MediaCodec.createDecoderByType(mimeType)
         val format = MediaFormat.createAudioFormat(mimeType, sampleRate, channelCount)
 
-        val csd0 = codecConfig ?: getAacDecoderConfigData(MediaCodecInfo.CodecProfileLevel.AACObjectLC, sampleRate, channelCount)
-        val bb = ByteBuffer.wrap(csd0)
-        format.setByteBuffer("csd-0", bb)
-        format.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
+        if (mimeType == MediaFormat.MIMETYPE_AUDIO_AAC) {
+            val csd0 = codecConfig ?: getAacDecoderConfigData(MediaCodecInfo.CodecProfileLevel.AACObjectLC, sampleRate, channelCount)
+            format.setByteBuffer("csd-0", ByteBuffer.wrap(csd0))
+            format.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
+        } else if (mimeType == MediaFormat.MIMETYPE_AUDIO_OPUS) {
+            // TODO: Add Opus support
+
+//            val OPUS_IDENTIFICATION_HEADER = "OpusHead".toByteArray()
+//            val OPUS_PRE_SKIP_NSEC = ByteBuffer.allocate(8).putLong(11971).array()
+//            val OPUS_SEEK_PRE_ROLL_NSEC = ByteBuffer.allocate(8).putLong(80000000).array()
+
+//            val csd0 = ByteBuffer.allocate(8+1+1+2+4+2+1)
+//            csd0.put("OpusHead".toByteArray())
+//            // Version
+//            csd0.put(1)
+//            // Number of channels
+//            csd0.put(2)
+//            // Pre-skip
+//            csd0.putShort(0)
+//            csd0.putInt(sampleRate)
+//            // Output Gain
+//            csd0.putShort(0)
+//            // Channel Mapping Family
+//            csd0.put(0)
+            // Buffer buf = new Buffer();
+//                // Magic Signature：固定头，占8个字节，为字符串OpusHead
+//                buf.write("OpusHead".getBytes(StandardCharsets.UTF_8));
+//                // Version：版本号，占1字节，固定为0x01
+//                buf.writeByte(1);
+//                // Channel Count：通道数，占1字节，根据音频流通道自行设置，如0x02
+//                buf.writeByte(1);
+//                // Pre-skip：回放的时候从解码器中丢弃的samples数量，占2字节，为小端模式，默认设置0x00,
+//                buf.writeShortLe(0);
+//                // Input Sample Rate (Hz)：音频流的Sample Rate，占4字节，为小端模式，根据实际情况自行设置
+//                buf.writeIntLe(currentFormat.HZ);
+//                //Output Gain：输出增益，占2字节，为小端模式，没有用到默认设置0x00, 0x00就好
+//                buf.writeShortLe(0);
+//                // Channel Mapping Family：通道映射系列，占1字节，默认设置0x00就好
+//                buf.writeByte(0);
+//                //Channel Mapping Table：可选参数，上面的Family默认设置0x00的时候可忽略
+//            format.setByteBuffer("csd-0", ByteBuffer.wrap(OPUS_IDENTIFICATION_HEADER).order(ByteOrder.BIG_ENDIAN))
+//            format.setByteBuffer("csd-1", ByteBuffer.wrap(OPUS_PRE_SKIP_NSEC).order(ByteOrder.BIG_ENDIAN))
+//            format.setByteBuffer("csd-2", ByteBuffer.wrap(OPUS_SEEK_PRE_ROLL_NSEC).order(ByteOrder.LITTLE_ENDIAN))
+
+            val csd0 = byteArrayOf(
+                0x4f, 0x70, 0x75, 0x73, // "Opus"
+                0x48, 0x65, 0x61, 0x64, // "Head"
+                0x01,  // Version
+                0x02,  // Channel Count
+                0x00, 0x00,  // Pre skip
+                0x80.toByte(), 0xbb.toByte(), 0x00, 0x00, // Sample rate 48000
+                0x00, 0x00,  // Output Gain (Q7.8 in dB)
+                0x00,  // Mapping Family
+            )
+            val csd1 = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+            val csd2 = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+            format.setByteBuffer("csd-0", ByteBuffer.wrap(csd0))
+            format.setByteBuffer("csd-1", ByteBuffer.wrap(csd1))
+            format.setByteBuffer("csd-2", ByteBuffer.wrap(csd2))
+        }
 
         decoder.configure(format, null, null, 0)
         decoder.start()
@@ -126,7 +183,7 @@ class AudioDecodeThread (
         try {
             decoder.stop()
             decoder.release()
-        } catch (e: InterruptedException) {
+        } catch (_: InterruptedException) {
         } catch (e: Exception) {
             e.printStackTrace()
         }

@@ -190,6 +190,16 @@ public class RtspClient {
 
     public static final int AUDIO_CODEC_UNKNOWN = -1;
     public static final int AUDIO_CODEC_AAC = 0;
+    public static final int AUDIO_CODEC_OPUS = 1;
+
+    @NonNull
+    private static String getAudioCodecName(int codec) {
+        switch (codec) {
+            case AUDIO_CODEC_AAC: return "AAC";
+            case AUDIO_CODEC_OPUS: return "Opus";
+            default: return "Unknown";
+        }
+    }
 
     public static class AudioTrack extends Track {
         public int audioCodec = AUDIO_CODEC_UNKNOWN;
@@ -361,7 +371,7 @@ public class RtspClient {
                     if (!requestAudio)
                         sdpInfo.audioTrack = null;
                     // Only AAC supported
-                    if (sdpInfo.audioTrack != null && sdpInfo.audioTrack.audioCodec != AUDIO_CODEC_AAC) {
+                    if (sdpInfo.audioTrack != null && sdpInfo.audioTrack.audioCodec == AUDIO_CODEC_UNKNOWN) {
                         Log.e(TAG_DEBUG, "Unknown RTSP audio codec (" + sdpInfo.audioTrack.audioCodec + ") specified in SDP");
                         sdpInfo.audioTrack = null;
                     }
@@ -900,6 +910,7 @@ public class RtspClient {
                         // a=fmtp:97 streamtype=5;profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1408
                         // a=fmtp:96 streamtype=5; profile-level-id=14; mode=AAC-lbr; config=1388; sizeLength=6; indexLength=2; indexDeltaLength=2; constantDuration=1024; maxDisplacement=5
                         // a=fmtp:96 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1210fff15081ffdffc
+                        // a=fmtp:96
                         } else if (param.second.startsWith("fmtp:")) {
                             // Video
                             if (currentTrack instanceof VideoTrack) {
@@ -937,16 +948,17 @@ public class RtspClient {
                                     AudioTrack track = ((AudioTrack) tracks[1]);
                                     values = TextUtils.split(values[1], "/");
                                     if (values.length > 1) {
-                                        if ("mpeg4-generic".equalsIgnoreCase(values[0])) {
-                                            track.audioCodec = AUDIO_CODEC_AAC;
-                                        } else {
-                                            Log.w(TAG, "Unknown audio codec \"" + values[0] + "\"");
-                                            track.audioCodec = AUDIO_CODEC_UNKNOWN;
+                                        switch (values[0].toLowerCase()) {
+                                            case "mpeg4-generic":  track.audioCodec = AUDIO_CODEC_AAC;  break;
+                                            case "opus":           track.audioCodec = AUDIO_CODEC_OPUS; break;
+                                            default:
+                                                Log.w(TAG, "Unknown audio codec \"" + values[0] + "\"");
+                                                track.audioCodec = AUDIO_CODEC_UNKNOWN;
                                         }
                                         track.sampleRateHz = Integer.parseInt(values[1]);
                                         // If no channels specified, use mono, e.g. "a=rtpmap:97 MPEG4-GENERIC/8000"
                                         track.channels = values.length > 2 ? Integer.parseInt(values[2]) : 1;
-                                        Log.i(TAG, "Audio: " + (track.audioCodec == AUDIO_CODEC_AAC ? "AAC LC" : "n/a") + ", sample rate: " + track.sampleRateHz + " Hz, channels: " + track.channels);
+                                        Log.i(TAG, "Audio: " + getAudioCodecName(track.audioCodec) + ", sample rate: " + track.sampleRateHz + " Hz, channels: " + track.channels);
                                     }
                                 }
 
@@ -1032,7 +1044,7 @@ public class RtspClient {
     // a=fmtp:97 streamtype=5;profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1408
     @Nullable
     private static List<Pair<String, String>> getSdpAParams(@NonNull Pair<String, String> param) {
-        if (param.first.equals("a") && param.second.startsWith("fmtp:")) { //
+        if (param.first.equals("a") && param.second.startsWith("fmtp:") && param.second.length() > 8) { //
             String value = param.second.substring(8).trim(); // fmtp can be '96' (2 chars) and '127' (3 chars)
             String[] paramsA = TextUtils.split(value, ";");
             // streamtype=5
@@ -1051,7 +1063,7 @@ public class RtspClient {
             }
             return retParams;
         } else {
-            Log.e(TAG, "Not a valid fmtp");
+            Log.w(TAG, "Not a valid fmtp");
         }
         return null;
     }

@@ -2,6 +2,7 @@ package com.alexvas.rtsp.widget
 
 import android.content.Context
 import android.media.MediaCodec
+import android.media.MediaFormat
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -68,11 +69,12 @@ open class RtspSurfaceView: SurfaceView {
             if (sdpInfo.videoTrack != null) {
                 videoFrameQueue.clear()
                 when (sdpInfo.videoTrack?.videoCodec) {
-                    RtspClient.VIDEO_CODEC_H264 -> videoMimeType = "video/avc"
-                    RtspClient.VIDEO_CODEC_H265 -> videoMimeType = "video/hevc"
+                    RtspClient.VIDEO_CODEC_H264 -> videoMimeType = MediaFormat.MIMETYPE_VIDEO_AVC
+                    RtspClient.VIDEO_CODEC_H265 -> videoMimeType = MediaFormat.MIMETYPE_VIDEO_HEVC
                 }
                 when (sdpInfo.audioTrack?.audioCodec) {
-                    RtspClient.AUDIO_CODEC_AAC -> audioMimeType = "audio/mp4a-latm"
+                    RtspClient.AUDIO_CODEC_AAC -> audioMimeType = MediaFormat.MIMETYPE_AUDIO_AAC
+                    RtspClient.AUDIO_CODEC_OPUS -> audioMimeType = MediaFormat.MIMETYPE_AUDIO_OPUS
                 }
                 val sps: ByteArray? = sdpInfo.videoTrack?.sps
                 val pps: ByteArray? = sdpInfo.videoTrack?.pps
@@ -89,7 +91,8 @@ open class RtspSurfaceView: SurfaceView {
             if (sdpInfo.audioTrack != null) {
                 audioFrameQueue.clear()
                 when (sdpInfo.audioTrack?.audioCodec) {
-                    RtspClient.AUDIO_CODEC_AAC -> audioMimeType = "audio/mp4a-latm"
+                    RtspClient.AUDIO_CODEC_AAC -> audioMimeType = MediaFormat.MIMETYPE_AUDIO_AAC
+                    RtspClient.AUDIO_CODEC_OPUS -> audioMimeType = MediaFormat.MIMETYPE_AUDIO_OPUS
                 }
                 audioSampleRate = sdpInfo.audioTrack?.sampleRateHz!!
                 audioChannelCount = sdpInfo.audioTrack?.channels!!
