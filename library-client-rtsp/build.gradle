@@ -28,6 +28,6 @@ android {
 }
 
 dependencies {
-    implementation "androidx.annotation:annotation:${androidXAnnotationVersion}"
-    api "com.google.android.exoplayer:exoplayer-core:${exoplayerVersion}"
+    implementation "androidx.annotation:annotation:$androidXAnnotationVersion"
+    api "com.google.android.exoplayer:exoplayer-core:$exoplayerVersion"
 }
