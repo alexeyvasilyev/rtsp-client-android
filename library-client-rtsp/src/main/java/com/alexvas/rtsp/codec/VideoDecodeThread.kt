@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.Surface
 import com.google.android.exoplayer2.util.Util
 import java.nio.ByteBuffer
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 class VideoDecodeThread (
@@ -62,7 +63,7 @@ class VideoDecodeThread (
 
             // Main loop
             while (!exitFlag.get()) {
-                val inIndex: Int = decoder.dequeueInputBuffer(10000L)
+                val inIndex: Int = decoder.dequeueInputBuffer(DEQUEUE_INPUT_TIMEOUT_US)
                 if (inIndex >= 0) {
                     // fill inputBuffers[inputBufferIndex] with valid data
                     val byteBuffer: ByteBuffer? = decoder.getInputBuffer(inIndex)
@@ -83,7 +84,7 @@ class VideoDecodeThread (
                 }
 
                 if (exitFlag.get()) break
-                when (val outIndex = decoder.dequeueOutputBuffer(bufferInfo, 10000L)) {
+                when (val outIndex = decoder.dequeueOutputBuffer(bufferInfo, DEQUEUE_OUTPUT_BUFFER_TIMEOUT_US)) {
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: ${decoder.outputFormat}")
                     MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
                     else -> {
@@ -100,7 +101,7 @@ class VideoDecodeThread (
             }
 
             // Drain decoder
-            val inIndex: Int = decoder.dequeueInputBuffer(5000L)
+            val inIndex: Int = decoder.dequeueInputBuffer(DEQUEUE_INPUT_TIMEOUT_US)
             if (inIndex >= 0) {
                 decoder.queueInputBuffer(inIndex, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
             } else {
@@ -124,6 +125,9 @@ class VideoDecodeThread (
     companion object {
         private val TAG: String = VideoDecodeThread::class.java.simpleName
         private const val DEBUG = false
+
+        private val DEQUEUE_INPUT_TIMEOUT_US = TimeUnit.MILLISECONDS.toMicros(500)
+        private val DEQUEUE_OUTPUT_BUFFER_TIMEOUT_US = TimeUnit.MILLISECONDS.toMicros(100)
     }
 
 }
