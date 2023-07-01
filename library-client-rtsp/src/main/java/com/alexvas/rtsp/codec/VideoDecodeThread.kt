@@ -84,14 +84,34 @@ class VideoDecodeThread (
                 }
 
                 if (exitFlag.get()) break
-                when (val outIndex = decoder.dequeueOutputBuffer(bufferInfo, DEQUEUE_OUTPUT_BUFFER_TIMEOUT_US)) {
-                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Log.d(TAG, "Decoder format changed: ${decoder.outputFormat}")
-                    MediaCodec.INFO_TRY_AGAIN_LATER -> if (DEBUG) Log.d(TAG, "No output from decoder available")
-                    else -> {
-                        if (outIndex >= 0)
-                            decoder.releaseOutputBuffer(outIndex, bufferInfo.size != 0 && !exitFlag.get())
+
+                // Get all output buffer frames until no buffer from decoder available (INFO_TRY_AGAIN_LATER).
+                // Single input buffer frame can contain several frames, e.g. SPS + PPS + IDR.
+                // Thus dequeueOutputBuffer should be called several times.
+                // First time it obtains SPS + PPS, second one - IDR frame.
+                do {
+                    val outIndex = decoder.dequeueOutputBuffer(bufferInfo, DEQUEUE_OUTPUT_BUFFER_TIMEOUT_US)
+                    when (outIndex) {
+                        // Resolution changed
+                        MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                            Log.d(TAG, "Decoder format changed: ${decoder.outputFormat}")
+                        }
+                        // No any frames in queue
+                        MediaCodec.INFO_TRY_AGAIN_LATER -> {
+                            if (DEBUG) Log.d(TAG, "No output from decoder available")
+                        }
+                        // Frame decoded
+                        else -> {
+                            if (outIndex >= 0) {
+                                val render = bufferInfo.size != 0 && !exitFlag.get() && surface.isValid
+                                if (DEBUG) Log.i(TAG, "\tFrame decoded [outIndex=$outIndex, length=${bufferInfo.size}, render=$render]")
+                                decoder.releaseOutputBuffer(outIndex, render)
+                            } else {
+                                Log.e(TAG, "Obtaining frame failed w/ error code $outIndex (length: ${bufferInfo.size})")
+                            }
+                        }
                     }
-                }
+                } while (outIndex != MediaCodec.INFO_TRY_AGAIN_LATER)
 
                 // All decoded frames have been rendered, we can stop playing now
                 if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
