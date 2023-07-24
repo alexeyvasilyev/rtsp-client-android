@@ -26,54 +26,74 @@ class LiveFragment : Fragment() {
 
     private val rtspStatusListener = object: RtspSurfaceView.RtspStatusListener {
         override fun onRtspStatusConnecting() {
-            binding.tvStatus.text = "RTSP connecting"
-            binding.pbLoading.visibility = View.VISIBLE
-            binding.vShutter.visibility = View.VISIBLE
-            binding.etRtspRequest.isEnabled = false
-            binding.etRtspUsername.isEnabled = false
-            binding.etRtspPassword.isEnabled = false
-            binding.cbVideo.isEnabled = false
-            binding.cbAudio.isEnabled = false
-            binding.cbDebug.isEnabled = false
+            binding.apply {
+                tvStatus.text = "RTSP connecting"
+                pbLoading.visibility = View.VISIBLE
+                vShutter.visibility = View.VISIBLE
+                etRtspRequest.isEnabled = false
+                etRtspUsername.isEnabled = false
+                etRtspPassword.isEnabled = false
+                cbVideo.isEnabled = false
+                cbAudio.isEnabled = false
+                cbDebug.isEnabled = false
+                tgRotation.isEnabled = false
+            }
         }
 
         override fun onRtspStatusConnected() {
-            binding.tvStatus.text = "RTSP connected"
-            binding.bnStartStop.text = "Stop RTSP"
-            binding.pbLoading.visibility = View.GONE
+            binding.apply {
+                tvStatus.text = "RTSP connected"
+                bnStartStop.text = "Stop RTSP"
+                pbLoading.visibility = View.GONE
+            }
+        }
+
+        override fun onRtspStatusDisconnecting() {
+            binding.apply {
+                tvStatus.text = "RTSP disconnecting"
+            }
         }
 
         override fun onRtspStatusDisconnected() {
-            binding.tvStatus.text = "RTSP disconnected"
-            binding.bnStartStop.text = "Start RTSP"
-            binding.pbLoading.visibility = View.GONE
-            binding.vShutter.visibility = View.VISIBLE
-            binding.bnSnapshot.isEnabled = false
-            binding.cbVideo.isEnabled = true
-            binding.cbAudio.isEnabled = true
-            binding.cbDebug.isEnabled = true
-            binding.etRtspRequest.isEnabled = true
-            binding.etRtspUsername.isEnabled = true
-            binding.etRtspPassword.isEnabled = true
+            binding.apply {
+                tvStatus.text = "RTSP disconnected"
+                bnStartStop.text = "Start RTSP"
+                pbLoading.visibility = View.GONE
+                vShutter.visibility = View.VISIBLE
+                bnSnapshot.isEnabled = false
+                cbVideo.isEnabled = true
+                cbAudio.isEnabled = true
+                cbDebug.isEnabled = true
+                etRtspRequest.isEnabled = true
+                etRtspUsername.isEnabled = true
+                etRtspPassword.isEnabled = true
+                tgRotation.isEnabled = true
+            }
         }
 
         override fun onRtspStatusFailedUnauthorized() {
             if (context == null) return
-            binding.tvStatus.text = "RTSP username or password invalid"
-            binding.pbLoading.visibility = View.GONE
+            binding.apply {
+                tvStatus.text = "RTSP username or password invalid"
+                pbLoading.visibility = View.GONE
+            }
             Toast.makeText(context, binding.tvStatus.text , Toast.LENGTH_LONG).show()
         }
 
         override fun onRtspStatusFailed(message: String?) {
             if (context == null) return
-            binding.tvStatus.text = "Error: $message"
-            Toast.makeText(context, binding.tvStatus.text , Toast.LENGTH_LONG).show()
-            binding.pbLoading.visibility = View.GONE
+            binding.apply {
+                tvStatus.text = "Error: $message"
+                Toast.makeText(context, tvStatus.text, Toast.LENGTH_LONG).show()
+                pbLoading.visibility = View.GONE
+            }
         }
 
         override fun onRtspFirstFrameRendered() {
-            binding.vShutter.visibility = View.GONE
-            binding.bnSnapshot.isEnabled = true
+            binding.apply {
+                vShutter.visibility = View.GONE
+                bnSnapshot.isEnabled = true
+            }
         }
     }
 
@@ -143,18 +163,36 @@ class LiveFragment : Fragment() {
             }
         })
 
-        liveViewModel.rtspRequest.observe(viewLifecycleOwner, {
+        liveViewModel.rtspRequest.observe(viewLifecycleOwner) {
             if (binding.etRtspRequest.text.toString() != it)
                 binding.etRtspRequest.setText(it)
-        })
-        liveViewModel.rtspUsername.observe(viewLifecycleOwner, {
+        }
+        liveViewModel.rtspUsername.observe(viewLifecycleOwner) {
             if (binding.etRtspUsername.text.toString() != it)
                 binding.etRtspUsername.setText(it)
-        })
-        liveViewModel.rtspPassword.observe(viewLifecycleOwner, {
+        }
+        liveViewModel.rtspPassword.observe(viewLifecycleOwner) {
             if (binding.etRtspPassword.text.toString() != it)
                 binding.etRtspPassword.setText(it)
-        })
+        }
+
+        binding.bnRotate0.setOnClickListener {
+            binding.svVideo.videoRotation = 0
+        }
+
+        binding.bnRotate90.setOnClickListener {
+            binding.svVideo.videoRotation = 90
+        }
+
+        binding.bnRotate180.setOnClickListener {
+            binding.svVideo.videoRotation = 180
+        }
+
+        binding.bnRotate270.setOnClickListener {
+            binding.svVideo.videoRotation = 270
+        }
+
+        binding.bnRotate0.performClick()
 
         binding.bnStartStop.setOnClickListener {
             if (binding.svVideo.isStarted()) {

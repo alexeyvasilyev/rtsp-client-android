@@ -1,4 +1,4 @@
 project.ext {
     androidXAnnotationVersion = '1.6.0'
-    exoplayerVersion = '2.18.7'
+    exoplayerVersion = '2.19.0'
 }

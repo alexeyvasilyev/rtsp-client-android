@@ -148,6 +148,7 @@ public class RtspClient {
         void onRtspConnected(@NonNull SdpInfo sdpInfo);
         void onRtspVideoNalUnitReceived(@NonNull byte[] data, int offset, int length, long timestamp);
         void onRtspAudioSampleReceived(@NonNull byte[] data, int offset, int length, long timestamp);
+        void onRtspDisconnecting();
         void onRtspDisconnected();
         void onRtspFailedUnauthorized();
         void onRtspFailed(@Nullable String message);
@@ -194,11 +195,11 @@ public class RtspClient {
 
     @NonNull
     private static String getAudioCodecName(int codec) {
-        switch (codec) {
-            case AUDIO_CODEC_AAC: return "AAC";
-            case AUDIO_CODEC_OPUS: return "Opus";
-            default: return "Unknown";
-        }
+        return switch (codec) {
+            case AUDIO_CODEC_AAC -> "AAC";
+            case AUDIO_CODEC_OPUS -> "Opus";
+            default -> "Unknown";
+        };
     }
 
     public static class AudioTrack extends Track {
@@ -252,8 +253,7 @@ public class RtspClient {
     }
 
     public void execute() {
-        if (DEBUG)
-            Log.v(TAG, "execute()");
+        if (DEBUG) Log.v(TAG, "execute()");
         listener.onRtspConnecting();
         try {
             final InputStream inputStream = rtspSocket.getInputStream();
@@ -528,12 +528,14 @@ public class RtspClient {
                 listener.onRtspFailed("No tracks found. RTSP server issue.");
             }
 
+            listener.onRtspDisconnecting();
             listener.onRtspDisconnected();
         } catch (UnauthorizedException e) {
             e.printStackTrace();
             listener.onRtspFailedUnauthorized();
         } catch (InterruptedException e) {
             // Thread interrupted. Expected behavior.
+            listener.onRtspDisconnecting();
             listener.onRtspDisconnected();
         } catch (Exception e) {
             e.printStackTrace();
@@ -711,8 +713,7 @@ public class RtspClient {
             @Nullable String userAgent,
             @Nullable String authToken)
     throws IOException {
-        if (DEBUG)
-            Log.v(TAG, "sendOptionsCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
+        if (DEBUG) Log.v(TAG, "sendOptionsCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
         sendSimpleCommand("OPTIONS", outputStream, request, cSeq, userAgent, null, authToken);
     }
 
@@ -724,8 +725,7 @@ public class RtspClient {
             @Nullable String session,
             @Nullable String authToken)
     throws IOException {
-        if (DEBUG)
-            Log.v(TAG, "sendGetParameterCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
+        if (DEBUG) Log.v(TAG, "sendGetParameterCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
         sendSimpleCommand("GET_PARAMETER", outputStream, request, cSeq, userAgent, session, authToken);
     }
 
@@ -736,8 +736,7 @@ public class RtspClient {
             @Nullable String userAgent,
             @Nullable String authToken)
     throws IOException {
-        if (DEBUG)
-            Log.v(TAG, "sendDescribeCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
+        if (DEBUG) Log.v(TAG, "sendDescribeCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
         outputStream.write(("DESCRIBE " + request + " RTSP/1.0" + CRLF).getBytes());
         outputStream.write(("Accept: application/sdp" + CRLF).getBytes());
         if (authToken != null)
@@ -757,8 +756,7 @@ public class RtspClient {
             @Nullable String authToken,
             @Nullable String session)
     throws IOException {
-        if (DEBUG)
-            Log.v(TAG, "sendTeardownCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
+        if (DEBUG) Log.v(TAG, "sendTeardownCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
         outputStream.write(("TEARDOWN " + request + " RTSP/1.0" + CRLF).getBytes());
         if (authToken != null)
             outputStream.write(("Authorization: " + authToken + CRLF).getBytes());
@@ -780,8 +778,7 @@ public class RtspClient {
             @Nullable String session,
             @NonNull String interleaved)
     throws IOException {
-        if (DEBUG)
-            Log.v(TAG, "sendSetupCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
+        if (DEBUG) Log.v(TAG, "sendSetupCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
         outputStream.write(("SETUP " + request + " RTSP/1.0" + CRLF).getBytes());
         outputStream.write(("Transport: RTP/AVP/TCP;unicast;interleaved=" + interleaved + CRLF).getBytes());
         if (authToken != null)
@@ -803,8 +800,7 @@ public class RtspClient {
             @Nullable String authToken,
             @NonNull String session)
     throws IOException {
-        if (DEBUG)
-            Log.v(TAG, "sendPlayCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
+        if (DEBUG) Log.v(TAG, "sendPlayCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
         outputStream.write(("PLAY " + request + " RTSP/1.0" + CRLF).getBytes());
         outputStream.write(("Range: npt=0.000-" + CRLF).getBytes());
         if (authToken != null)
@@ -829,17 +825,17 @@ public class RtspClient {
                 Log.d(TAG_DEBUG, "" + line);
 //            int indexRtsp = line.indexOf("TSP/1.0 "); // 8 characters, 'R' already found
 //            if (indexRtsp >= 0) {
-                int indexCode = line.indexOf(' ');
-                String code = line.substring(0, indexCode);
-                try {
-                    int statusCode = Integer.parseInt(code);
-                    if (debug)
-                        Log.d(TAG_DEBUG, "Status code: " + statusCode);
-                    return statusCode;
-                } catch (NumberFormatException e) {
-                    // Does not fulfill standard "RTSP/1.1 200 OK" token
-                    // Continue search for
-                }
+            int indexCode = line.indexOf(' ');
+            String code = line.substring(0, indexCode);
+            try {
+                int statusCode = Integer.parseInt(code);
+                if (debug)
+                    Log.d(TAG_DEBUG, "Status code: " + statusCode);
+                return statusCode;
+            } catch (NumberFormatException e) {
+                // Does not fulfill standard "RTSP/1.1 200 OK" token
+                // Continue search for
+            }
 //            }
         }
         if (debug)
@@ -933,10 +929,9 @@ public class RtspClient {
                                     values = TextUtils.split(values[1], "/");
                                     if (values.length > 0) {
                                         switch (values[0].toLowerCase()) {
-                                            case "h264": ((VideoTrack) tracks[0]).videoCodec = VIDEO_CODEC_H264; break;
-                                            case "h265": ((VideoTrack) tracks[0]).videoCodec = VIDEO_CODEC_H265; break;
-                                            default:
-                                                Log.w(TAG, "Unknown video codec \"" + values[0] + "\"");
+                                            case "h264" -> ((VideoTrack) tracks[0]).videoCodec = VIDEO_CODEC_H264;
+                                            case "h265" -> ((VideoTrack) tracks[0]).videoCodec = VIDEO_CODEC_H265;
+                                            default -> Log.w(TAG, "Unknown video codec \"" + values[0] + "\"");
                                         }
                                         Log.i(TAG, "Video: " + values[0]);
                                     }
@@ -949,11 +944,12 @@ public class RtspClient {
                                     values = TextUtils.split(values[1], "/");
                                     if (values.length > 1) {
                                         switch (values[0].toLowerCase()) {
-                                            case "mpeg4-generic":  track.audioCodec = AUDIO_CODEC_AAC;  break;
-                                            case "opus":           track.audioCodec = AUDIO_CODEC_OPUS; break;
-                                            default:
+                                            case "mpeg4-generic" -> track.audioCodec = AUDIO_CODEC_AAC;
+                                            case "opus" -> track.audioCodec = AUDIO_CODEC_OPUS;
+                                            default -> {
                                                 Log.w(TAG, "Unknown audio codec \"" + values[0] + "\"");
                                                 track.audioCodec = AUDIO_CODEC_UNKNOWN;
+                                            }
                                         }
                                         track.sampleRateHz = Integer.parseInt(values[1]);
                                         // If no channels specified, use mono, e.g. "a=rtpmap:97 MPEG4-GENERIC/8000"
@@ -1034,8 +1030,8 @@ public class RtspClient {
 
         for (Pair<String, String> param : params) {
             switch (param.first) {
-                case "s": sdpInfo.sessionName = param.second; break;
-                case "i": sdpInfo.sessionDescription = param.second; break;
+                case "s" -> sdpInfo.sessionName = param.second;
+                case "i" -> sdpInfo.sessionDescription = param.second;
             }
         }
         return sdpInfo;
@@ -1076,8 +1072,7 @@ public class RtspClient {
         if (params != null) {
             for (Pair<String, String> pair: params) {
                 switch (pair.first.toLowerCase()) {
-                    case "sprop-parameter-sets":
-                        {
+                    case "sprop-parameter-sets" -> {
                             String[] paramsSpsPps = TextUtils.split(pair.second, ",");
                             if (paramsSpsPps.length > 1) {
                                 byte[] sps = Base64.decode(paramsSpsPps[0], Base64.NO_WRAP);
@@ -1099,7 +1094,6 @@ public class RtspClient {
                                 videoTrack.pps = nalPps;
                             }
                         }
-                        break;
                 }
             }
         }
@@ -1119,8 +1113,8 @@ public class RtspClient {
         if (params != null) {
             for (Pair<String, String> pair: params) {
                 switch (pair.first.toLowerCase()) {
-                    case "mode": audioTrack.mode = pair.second; break;
-                    case "config": audioTrack.config = getBytesFromHexString(pair.second); break;
+                    case "mode" -> audioTrack.mode = pair.second;
+                    case "config" -> audioTrack.config = getBytesFromHexString(pair.second);
                 }
             }
         }
@@ -1130,7 +1124,6 @@ public class RtspClient {
         String length = getHeader(headers, "content-length");
         if (!TextUtils.isEmpty(length)) {
             try {
-                //noinspection ConstantConditions
                 return Integer.parseInt(length);
             } catch (NumberFormatException ignored) {
             }
@@ -1147,17 +1140,17 @@ public class RtspClient {
                 String[] tokens = TextUtils.split(head.second.toLowerCase(), ",");
                 for (String token: tokens) {
                     switch (token.trim()) {
-                        case "options":       mask |= RTSP_CAPABILITY_OPTIONS; break;
-                        case "describe":      mask |= RTSP_CAPABILITY_DESCRIBE; break;
-                        case "announce":      mask |= RTSP_CAPABILITY_ANNOUNCE; break;
-                        case "setup":         mask |= RTSP_CAPABILITY_SETUP; break;
-                        case "play":          mask |= RTSP_CAPABILITY_PLAY; break;
-                        case "record":        mask |= RTSP_CAPABILITY_RECORD; break;
-                        case "pause":         mask |= RTSP_CAPABILITY_PAUSE; break;
-                        case "teardown":      mask |= RTSP_CAPABILITY_TEARDOWN; break;
-                        case "set_parameter": mask |= RTSP_CAPABILITY_SET_PARAMETER; break;
-                        case "get_parameter": mask |= RTSP_CAPABILITY_GET_PARAMETER; break;
-                        case "redirect":      mask |= RTSP_CAPABILITY_REDIRECT; break;
+                        case "options" -> mask |= RTSP_CAPABILITY_OPTIONS;
+                        case "describe" -> mask |= RTSP_CAPABILITY_DESCRIBE;
+                        case "announce" -> mask |= RTSP_CAPABILITY_ANNOUNCE;
+                        case "setup" -> mask |= RTSP_CAPABILITY_SETUP;
+                        case "play" -> mask |= RTSP_CAPABILITY_PLAY;
+                        case "record" -> mask |= RTSP_CAPABILITY_RECORD;
+                        case "pause" -> mask |= RTSP_CAPABILITY_PAUSE;
+                        case "teardown" -> mask |= RTSP_CAPABILITY_TEARDOWN;
+                        case "set_parameter" -> mask |= RTSP_CAPABILITY_SET_PARAMETER;
+                        case "get_parameter" -> mask |= RTSP_CAPABILITY_GET_PARAMETER;
+                        case "redirect" -> mask |= RTSP_CAPABILITY_REDIRECT;
                     }
                 }
                 return mask;
@@ -1388,8 +1381,7 @@ public class RtspClient {
     }
 
     private static int readData(@NonNull InputStream inputStream, @NonNull byte[] buffer, int offset, int length) throws IOException {
-        if (DEBUG)
-            Log.v(TAG, "readData(offset=" + offset + ", length=" + length + ")");
+        if (DEBUG) Log.v(TAG, "readData(offset=" + offset + ", length=" + length + ")");
         int readBytes;
         int totalReadBytes = 0;
         do {

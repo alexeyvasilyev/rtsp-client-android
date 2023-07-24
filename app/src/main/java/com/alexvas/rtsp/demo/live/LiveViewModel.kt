@@ -21,7 +21,7 @@ class LiveViewModel : ViewModel() {
 
     companion object {
         private val TAG: String = LiveViewModel::class.java.simpleName
-        private const val DEBUG = true
+        private const val DEBUG = false
     }
 
     val rtspRequest = MutableLiveData<String>().apply {
