@@ -1,5 +1,7 @@
 # rtsp-client-android
-Lightweight RTSP client library for Android.
+<b>Lightweight RTSP client library for Android</b> with almost zero lag video display. Designed for lag criticial applications (e.g. video surveillance from drones).
+
+Unlike [ExoPlayer](https://github.com/google/ExoPlayer) which also supports RTSP, this library does not make any video buffering. Video frames are shown immidiately when they arrive.
 
 [![Release](https://jitpack.io/v/alexeyvasilyev/rtsp-client-android.svg)](https://jitpack.io/#alexeyvasilyev/rtsp-client-android)
 
@@ -30,7 +32,7 @@ allprojects {
   }
 }
 dependencies {
-  implementation 'com.github.humayoonsiddiqui:rtsp-client-android:2.0'
+  implementation 'com.github.alexeyvasilyev:rtsp-client-android:x.x.x'
 }
 ```
 

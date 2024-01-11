@@ -63,10 +63,9 @@ class FrameQueue(frameQueueSize: Int) {
                 }
                 return frame
             }
-            } catch (e: InterruptedException) {
-            Log.i(TAG, "Cannot add frame, queue is full "+queue.size, e)
-           // Toast.makeText(mapplicationContext,"Cannot add frame, queue is full "+queue.size,Toast.LENGTH_SHORT).show()
-            queue.clear()
+
+            return frame
+        } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
         }
         return null

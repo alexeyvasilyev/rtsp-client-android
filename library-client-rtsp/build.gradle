@@ -24,10 +24,20 @@ android {
         minSdkVersion min_sdk_version
         targetSdkVersion target_sdk_version
     }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     namespace 'com.alexvas.rtsp'
 }
 
 dependencies {
-    implementation "androidx.annotation:annotation:${androidXAnnotationVersion}"
-    api "com.google.android.exoplayer:exoplayer-core:${exoplayerVersion}"
+    implementation "androidx.annotation:annotation:$androidXAnnotationVersion"
+    implementation "com.google.android.exoplayer:exoplayer-core:$exoplayerVersion"
 }

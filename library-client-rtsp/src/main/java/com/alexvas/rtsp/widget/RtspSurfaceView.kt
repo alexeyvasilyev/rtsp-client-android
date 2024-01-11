@@ -1,7 +1,7 @@
 package com.alexvas.rtsp.widget
 
 import android.content.Context
-import android.media.MediaCodec
+import android.media.MediaFormat
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -19,8 +19,6 @@ import java.net.Socket
 import java.util.concurrent.atomic.AtomicBoolean
 
 open class RtspSurfaceView: SurfaceView {
-
-    var debug: Boolean = false
 
     private lateinit var uri: Uri
     private var username: String? = null
@@ -44,13 +42,30 @@ open class RtspSurfaceView: SurfaceView {
     private var audioCodecConfig: ByteArray? = null
     private var firstFrameRendered = false
 
+    /**
+     * Show more debug info on console on runtime.
+     */
+    var debug = false
+
+    /**
+     * Video rotation in degrees. Allowed values: 0, 90, 180, 270.
+     * Note that not all hardware video decoders support rotation.
+     */
+    var videoRotation = 0
+        set(value) {
+            if (value == 0 || value == 90 || value == 180 || value == 270)
+                field = value
+        }
+
     interface RtspStatusListener {
-        fun onRtspStatusConnecting()
-        fun onRtspStatusConnected()
-        fun onRtspStatusDisconnected(message: String?)
-        fun onRtspStatusFailedUnauthorized()
-        fun onRtspStatusFailed(message: String?)
-        fun onRtspFirstFrameRendered()
+        fun onRtspStatusConnecting() {}
+        fun onRtspStatusConnected() {}
+        fun onRtspStatusDisconnecting() {}
+        fun onRtspStatusDisconnected() {}
+        fun onRtspStatusFailedUnauthorized() {}
+        fun onRtspStatusFailed(message: String?) {}
+        fun onRtspFirstFrameRendered() {}
+
     }
 
     private val proxyClientListener = object: RtspClient.RtspClientListener {
@@ -67,11 +82,12 @@ open class RtspSurfaceView: SurfaceView {
             if (sdpInfo.videoTrack != null) {
                 videoFrameQueue.clear()
                 when (sdpInfo.videoTrack?.videoCodec) {
-                    RtspClient.VIDEO_CODEC_H264 -> videoMimeType = "video/avc"
-                    RtspClient.VIDEO_CODEC_H265 -> videoMimeType = "video/hevc"
+                    RtspClient.VIDEO_CODEC_H264 -> videoMimeType = MediaFormat.MIMETYPE_VIDEO_AVC
+                    RtspClient.VIDEO_CODEC_H265 -> videoMimeType = MediaFormat.MIMETYPE_VIDEO_HEVC
                 }
                 when (sdpInfo.audioTrack?.audioCodec) {
-                    RtspClient.AUDIO_CODEC_AAC -> audioMimeType = "audio/mp4a-latm"
+                    RtspClient.AUDIO_CODEC_AAC -> audioMimeType = MediaFormat.MIMETYPE_AUDIO_AAC
+                    RtspClient.AUDIO_CODEC_OPUS -> audioMimeType = MediaFormat.MIMETYPE_AUDIO_OPUS
                 }
                 val sps: ByteArray? = sdpInfo.videoTrack?.sps
                 val pps: ByteArray? = sdpInfo.videoTrack?.pps
@@ -88,7 +104,8 @@ open class RtspSurfaceView: SurfaceView {
             if (sdpInfo.audioTrack != null) {
                 audioFrameQueue.clear()
                 when (sdpInfo.audioTrack?.audioCodec) {
-                    RtspClient.AUDIO_CODEC_AAC -> audioMimeType = "audio/mp4a-latm"
+                    RtspClient.AUDIO_CODEC_AAC -> audioMimeType = MediaFormat.MIMETYPE_AUDIO_AAC
+                    RtspClient.AUDIO_CODEC_OPUS -> audioMimeType = MediaFormat.MIMETYPE_AUDIO_OPUS
                 }
                 audioSampleRate = sdpInfo.audioTrack?.sampleRateHz!!
                 audioChannelCount = sdpInfo.audioTrack?.channels!!
@@ -108,7 +125,15 @@ open class RtspSurfaceView: SurfaceView {
             if (length > 0) audioFrameQueue.push(FrameQueue.Frame(data, offset, length, timestamp,context))
         }
 
-        override fun onRtspDisconnected(message: String?) {
+        override fun onRtspDisconnecting() {
+            if (DEBUG) Log.v(TAG, "onRtspDisconnecting()")
+            uiHandler.post {
+                statusListener?.onRtspStatusDisconnecting()
+            }
+        }
+
+        override fun onRtspDisconnected() {
+          
             if (DEBUG) Log.v(TAG, "onRtspDisconnected()")
             uiHandler.post {
                 statusListener?.onRtspStatusDisconnected(message)
@@ -147,6 +172,30 @@ open class RtspSurfaceView: SurfaceView {
         }
     }
 
+    private val videoDecoderListener = object: VideoDecodeThread.VideoDecoderListener {
+        override fun onVideoDecoderStarted() {
+            if (DEBUG) Log.v(TAG, "onVideoDecoderStarted()")
+        }
+
+        override fun onVideoDecoderStopped() {
+            if (DEBUG) Log.v(TAG, "onVideoDecoderStopped()")
+        }
+
+        override fun onVideoDecoderFailed(message: String?) {
+            if (DEBUG) Log.v(TAG, "onVideoDecoderFailed(message='$message')")
+        }
+
+        override fun onVideoDecoderFormatChanged(width: Int, height: Int) {
+            if (DEBUG) Log.v(TAG, "onVideoDecoderFormatChanged(width=$width, height=$height)")
+        }
+
+        override fun onVideoDecoderFirstFrameRendered() {
+            if (DEBUG) Log.v(TAG, "onVideoDecoderFirstFrameDecoded()")
+            if (!firstFrameRendered) statusListener?.onRtspFirstFrameRendered()
+            firstFrameRendered = true
+        }
+    }
+
     constructor(context: Context) : super(context) {
         initView()
     }
@@ -158,8 +207,8 @@ open class RtspSurfaceView: SurfaceView {
     constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
         initView()
     }
-
-    private fun initView() {
+    private fun initView(context: Context, attrs: AttributeSet?, defStyleAttr: Int) {
+        if (DEBUG) Log.v(TAG, "initView()")
         holder.addCallback(surfaceCallback)
     }
 
@@ -238,7 +287,7 @@ open class RtspSurfaceView: SurfaceView {
         }
     }
 
-    fun setStatusListener(listener: RtspStatusListener) {
+    fun setStatusListener(listener: RtspStatusListener?) {
         if (DEBUG) Log.v(TAG, "setStatusListener()")
         this.statusListener = listener
     }
@@ -252,23 +301,22 @@ open class RtspSurfaceView: SurfaceView {
         if (DEBUG) Log.v(TAG, "onRtspClientConnected()")
         if (videoMimeType.isNotEmpty()) {
             firstFrameRendered = false
-            val onFrameRenderedListener =
-                MediaCodec.OnFrameRenderedListener { _, _, _ ->
-                    if (!firstFrameRendered) statusListener?.onRtspFirstFrameRendered()
-                    firstFrameRendered = true
-                }
             Log.i(TAG, "Starting video decoder with mime type \"$videoMimeType\"")
             videoDecodeThread = VideoDecodeThread(
-                holder.surface, videoMimeType, surfaceWidth, surfaceHeight, videoFrameQueue, onFrameRenderedListener)
-            videoDecodeThread!!.name = "RTSP video thread [${getUriName()}]"
-            videoDecodeThread!!.start()
+                holder.surface, videoMimeType, surfaceWidth, surfaceHeight, videoRotation, videoFrameQueue, videoDecoderListener)
+            videoDecodeThread!!.apply {
+                name = "RTSP video thread [${getUriName()}]"
+                start()
+            }
         }
         if (audioMimeType.isNotEmpty() /*&& checkAudio!!.isChecked*/) {
             Log.i(TAG, "Starting audio decoder with mime type \"$audioMimeType\"")
             audioDecodeThread = AudioDecodeThread(
                 audioMimeType, audioSampleRate, audioChannelCount, audioCodecConfig, audioFrameQueue)
-            audioDecodeThread!!.name = "RTSP audio thread [${getUriName()}]"
-            audioDecodeThread!!.start()
+            audioDecodeThread!!.apply {
+                name = "RTSP audio thread [${getUriName()}]"
+                start()
+            }
         }
     }
 
