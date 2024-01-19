@@ -55,7 +55,7 @@ class LiveFragment : Fragment() {
             }
         }
 
-        override fun onRtspStatusDisconnected() {
+        override fun onRtspStatusDisconnected(message:String?) {
             binding.apply {
                 tvStatus.text = "RTSP disconnected"
                 bnStartStop.text = "Start RTSP"

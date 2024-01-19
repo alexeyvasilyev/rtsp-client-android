@@ -150,8 +150,7 @@ public class RtspClient {
         void onRtspAudioSampleReceived(@NonNull byte[] data, int offset, int length, long timestamp);
 
         void onRtspDisconnecting();
-        void onRtspDisconnected();
-
+        void onRtspDisconnected(@Nullable String message);
         void onRtspFailedUnauthorized();
         void onRtspFailed(@Nullable String message);
     }
@@ -530,9 +529,6 @@ public class RtspClient {
                 listener.onRtspFailed("No tracks found. RTSP server issue.");
             }
 
-            listener.onRtspDisconnecting();
-            listener.onRtspDisconnected();
-
         } catch (UnauthorizedException e) {
             e.printStackTrace();
             listener.onRtspFailedUnauthorized();
@@ -540,7 +536,7 @@ public class RtspClient {
             // Thread interrupted. Expected behavior.
 
             listener.onRtspDisconnecting();
-            listener.onRtspDisconnected();
+            listener.onRtspDisconnected(e.getMessage());
           
         } catch (Exception e) {
             e.printStackTrace();

@@ -27,12 +27,12 @@ open class RtspSurfaceView: SurfaceView {
     private var requestVideo = true
     private var requestAudio = true
     private var rtspThread: RtspThread? = null
-    var videoFrameQueue = FrameQueue(200)
+    private var videoFrameQueue = FrameQueue(60)
     private var audioFrameQueue = FrameQueue(10)
     private var videoDecodeThread: VideoDecodeThread? = null
     private var audioDecodeThread: AudioDecodeThread? = null
-    private var surfaceWidth = 720
-    private var surfaceHeight = 480
+    private var surfaceWidth = 1920
+    private var surfaceHeight = 1080
     private var statusListener: RtspStatusListener? = null
     private val uiHandler = Handler(Looper.getMainLooper())
     private var videoMimeType: String = "video/avc"
@@ -57,15 +57,15 @@ open class RtspSurfaceView: SurfaceView {
                 field = value
         }
 
-    interface RtspStatusListener {
-        fun onRtspStatusConnecting() {}
-        fun onRtspStatusConnected() {}
-        fun onRtspStatusDisconnecting() {}
-        fun onRtspStatusDisconnected() {}
-        fun onRtspStatusFailedUnauthorized() {}
-        fun onRtspStatusFailed(message: String?) {}
-        fun onRtspFirstFrameRendered() {}
 
+    interface RtspStatusListener {
+        fun onRtspStatusConnecting()
+        fun onRtspStatusConnected()
+        fun onRtspStatusDisconnecting() {}
+        fun onRtspStatusDisconnected(message: String?)
+        fun onRtspStatusFailedUnauthorized()
+        fun onRtspStatusFailed(message: String?)
+        fun onRtspFirstFrameRendered()
     }
 
     private val proxyClientListener = object: RtspClient.RtspClientListener {
@@ -96,7 +96,7 @@ open class RtspSurfaceView: SurfaceView {
                     val data = ByteArray(sps.size + pps.size)
                     sps.copyInto(data, 0, 0, sps.size)
                     pps.copyInto(data, sps.size, 0, pps.size)
-                    videoFrameQueue.push(FrameQueue.Frame(data, 0, data.size, 0,context))
+                    videoFrameQueue.push(FrameQueue.Frame(data, 0, data.size, 0))
                 } else {
                     if (DEBUG) Log.d(TAG, "RTSP SPS and PPS NAL units missed in SDP")
                 }
@@ -118,11 +118,11 @@ open class RtspSurfaceView: SurfaceView {
         }
 
         override fun onRtspVideoNalUnitReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
-            if (length > 0) videoFrameQueue.push(FrameQueue.Frame(data, offset, length, timestamp,context))
+            if (length > 0) videoFrameQueue.push(FrameQueue.Frame(data, offset, length, timestamp))
         }
 
         override fun onRtspAudioSampleReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
-            if (length > 0) audioFrameQueue.push(FrameQueue.Frame(data, offset, length, timestamp,context))
+            if (length > 0) audioFrameQueue.push(FrameQueue.Frame(data, offset, length, timestamp))
         }
 
         override fun onRtspDisconnecting() {
@@ -132,8 +132,7 @@ open class RtspSurfaceView: SurfaceView {
             }
         }
 
-        override fun onRtspDisconnected() {
-          
+        override fun onRtspDisconnected(message: String?) {
             if (DEBUG) Log.v(TAG, "onRtspDisconnected()")
             uiHandler.post {
                 statusListener?.onRtspStatusDisconnected(message)
@@ -155,7 +154,7 @@ open class RtspSurfaceView: SurfaceView {
         }
     }
 
-   private val surfaceCallback = object: SurfaceHolder.Callback {
+    private val surfaceCallback = object: SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder) {
             if (DEBUG) Log.v(TAG, "surfaceCreated()")
         }
@@ -197,16 +196,17 @@ open class RtspSurfaceView: SurfaceView {
     }
 
     constructor(context: Context) : super(context) {
-        initView()
+        initView(context, null, 0)
     }
 
     constructor(context: Context, attrs: AttributeSet?) : super(context, attrs) {
-        initView()
+        initView(context, attrs, 0)
     }
 
     constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
-        initView()
+        initView(context, attrs, defStyleAttr)
     }
+
     private fun initView(context: Context, attrs: AttributeSet?, defStyleAttr: Int) {
         if (DEBUG) Log.v(TAG, "initView()")
         holder.addCallback(surfaceCallback)
@@ -224,24 +224,33 @@ open class RtspSurfaceView: SurfaceView {
         this.userAgent = userAgent
     }
 
+    fun setVideoFrameQueueSize(size: Int) {
+        videoFrameQueue = FrameQueue(size)
+    }
+
+    fun setAudioFrameQueueSize(size: Int) {
+        audioFrameQueue = FrameQueue(size)
+    }
+
+    fun setSurfaceDimensions(width: Int, height: Int) {
+        surfaceWidth = width
+        surfaceHeight = height
+    }
+
     fun start(requestVideo: Boolean, requestAudio: Boolean) {
-        if (DEBUG) Log.i(TAG, "start(requestVideo=$requestVideo, requestAudio=$requestAudio)")
+        if (DEBUG) Log.v(TAG, "start(requestVideo=$requestVideo, requestAudio=$requestAudio)")
         if (rtspThread != null) rtspThread?.stopAsync()
         this.requestVideo = requestVideo
         this.requestAudio = requestAudio
         rtspThread = RtspThread()
         rtspThread!!.name = "RTSP IO thread [${getUriName()}]"
         rtspThread!!.start()
-        Log.i(TAG,"established")
     }
 
     fun stop() {
-        Log.i(TAG,"stopped")
-
-        if (DEBUG) Log.i(TAG, "stop()")
+        if (DEBUG) Log.v(TAG, "stop()")
         rtspThread?.stopAsync()
         rtspThread = null
-
     }
 
     fun isStarted(): Boolean {
@@ -287,7 +296,7 @@ open class RtspSurfaceView: SurfaceView {
         }
     }
 
-    fun setStatusListener(listener: RtspStatusListener?) {
+    fun setStatusListener(listener: RtspStatusListener) {
         if (DEBUG) Log.v(TAG, "setStatusListener()")
         this.statusListener = listener
     }
