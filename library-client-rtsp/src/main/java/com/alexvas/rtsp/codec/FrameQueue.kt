@@ -5,7 +5,7 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.TimeUnit
 
-class FrameQueue(frameQueueSize: Int) {
+class FrameQueue(private val frameQueueSize: Int) {
 
     data class Frame (
         val data: ByteArray,
@@ -20,6 +20,12 @@ class FrameQueue(frameQueueSize: Int) {
     fun push(frame: Frame): Boolean {
         if (queue.offer(frame, 5, TimeUnit.MILLISECONDS)) {
             return true
+        }
+        if (queue.size >= frameQueueSize) {
+            Log.w(TAG, "Cannot add frame, queue is full. Queue Size :${queue.size}")
+            Thread.currentThread().interrupt()
+            queue.poll()
+            queue.clear()
         }
         Log.w(TAG, "Cannot add frame, queue is full")
         return false
