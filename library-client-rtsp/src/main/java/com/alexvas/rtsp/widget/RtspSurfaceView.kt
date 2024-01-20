@@ -228,10 +228,6 @@ open class RtspSurfaceView: SurfaceView {
         videoFrameQueue = FrameQueue(size)
     }
 
-    fun setAudioFrameQueueSize(size: Int) {
-        audioFrameQueue = FrameQueue(size)
-    }
-
     fun setSurfaceDimensions(width: Int, height: Int) {
         surfaceWidth = width
         surfaceHeight = height
