@@ -22,7 +22,7 @@ class FrameQueue(private val frameQueueSize: Int) {
             return true
         }
         if (queue.size >= frameQueueSize) {
-            Log.w(TAG, "Cannot add frame, queue is full. Queue Size :${queue.size}")
+            Log.w(TAG, "Cannot add frame, queue is full. Queue size: ${queue.size}")
             Thread.currentThread().interrupt()
             queue.poll()
             queue.clear()
@@ -34,16 +34,16 @@ class FrameQueue(private val frameQueueSize: Int) {
     @Throws(InterruptedException::class)
     fun pop(): Frame? {
         try {
-            if (queue.size>0) {
+            if (queue.size > 0) {
                 val frame: Frame? = queue.poll(1000, TimeUnit.MILLISECONDS)
 
                 if (frame == null) {
-                    Log.w(TAG, "Cannot get frame, queue is empty. Queue Size :${queue.size}")
+                    Log.w(TAG, "Cannot get frame, queue is empty. Queue size: ${queue.size}")
                 }
                 return frame
             }
         } catch (e: InterruptedException) {
-            Log.i(TAG, "pop: InterruptedException caught. Queue Size: ${queue.size} ", e)
+            Log.w(TAG, "InterruptedException caught. Queue size: ${queue.size}")
             queue.clear()
             Thread.currentThread().interrupt()
         }
