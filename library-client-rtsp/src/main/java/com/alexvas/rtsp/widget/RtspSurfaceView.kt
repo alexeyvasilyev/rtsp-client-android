@@ -224,6 +224,19 @@ open class RtspSurfaceView: SurfaceView {
         this.userAgent = userAgent
     }
 
+    fun setVideoFrameQueueSize(size: Int) {
+        videoFrameQueue = FrameQueue(size)
+    }
+
+    fun setAudioFrameQueueSize(size: Int) {
+        audioFrameQueue = FrameQueue(size)
+    }
+
+    fun setSurfaceDimensions(width: Int, height: Int) {
+        surfaceWidth = width
+        surfaceHeight = height
+    }
+
     fun start(requestVideo: Boolean, requestAudio: Boolean) {
         if (DEBUG) Log.v(TAG, "start(requestVideo=$requestVideo, requestAudio=$requestAudio)")
         if (rtspThread != null) rtspThread?.stopAsync()
