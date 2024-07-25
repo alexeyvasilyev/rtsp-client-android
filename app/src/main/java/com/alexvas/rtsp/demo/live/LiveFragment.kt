@@ -13,9 +13,14 @@ import android.view.*
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import com.alexvas.rtsp.codec.VideoDecodeThread
 import com.alexvas.rtsp.demo.databinding.FragmentLiveBinding
 import com.alexvas.rtsp.widget.RtspSurfaceView
+import java.util.Timer
+import java.util.TimerTask
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.absoluteValue
 
 
 @SuppressLint("LogNotTimber")
@@ -125,6 +130,8 @@ class LiveFragment : Fragment() {
         liveViewModel = ViewModelProvider(this).get(LiveViewModel::class.java)
         binding = FragmentLiveBinding.inflate(inflater, container, false)
 
+        binding.bnVideoDecoderGroup.check(binding.bnVideoDecoderHardware.id)
+
         binding.svVideo.setStatusListener(rtspStatusListener)
         binding.etRtspRequest.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
@@ -194,14 +201,26 @@ class LiveFragment : Fragment() {
 
         binding.bnRotate0.performClick()
 
+        binding.bnVideoDecoderHardware.setOnClickListener {
+            binding.svVideo.videoDecoderType = VideoDecodeThread.DecoderType.HARDWARE
+        }
+
+        binding.bnVideoDecoderSoftware.setOnClickListener {
+            binding.svVideo.videoDecoderType = VideoDecodeThread.DecoderType.SOFTWARE
+        }
+
         binding.bnStartStop.setOnClickListener {
             if (binding.svVideo.isStarted()) {
                 binding.svVideo.stop()
+                stopStatistics()
             } else {
                 val uri = Uri.parse(liveViewModel.rtspRequest.value)
-                binding.svVideo.init(uri, liveViewModel.rtspUsername.value, liveViewModel.rtspPassword.value, "rtsp-client-android")
-                binding.svVideo.debug = binding.cbDebug.isChecked
-                binding.svVideo.start(binding.cbVideo.isChecked, binding.cbAudio.isChecked)
+                binding.svVideo.apply {
+                    init(uri, liveViewModel.rtspUsername.value, liveViewModel.rtspPassword.value, "rtsp-client-android")
+                    debug = binding.cbDebug.isChecked
+                    start(binding.cbVideo.isChecked, binding.cbAudio.isChecked)
+                }
+                startStatistics()
             }
         }
 
@@ -231,7 +250,52 @@ class LiveFragment : Fragment() {
 
         if (started) {
             binding.svVideo.stop()
+            stopStatistics()
         }
+    }
+
+    private var statisticsTimer: Timer? = null
+
+    private fun startStatistics() {
+        if (DEBUG) Log.v(TAG, "startStatistics()")
+        Log.i(TAG, "Start statistics")
+        if (statisticsTimer == null) {
+            val task: TimerTask = object : TimerTask() {
+                override fun run() {
+                    val statistics = binding.svVideo.statistics
+                    val text =
+                        "Video decoder: ${statistics.videoDecoderType.toString().lowercase()} ${if (statistics.videoDecoderName.isNullOrEmpty()) "" else "(${statistics.videoDecoderName})"}" +
+                        "\nVideo decoder latency: ${statistics.videoDecoderLatencyMsec} ms"
+//                        "\nNetwork latency: "
+
+//                    // Assume that difference between current Android time and camera time cannot be more than 5 sec.
+//                    // Otherwise time need to be synchronized on both devices.
+//                    text += if (statistics.networkLatencyMsec == -1) {
+//                        "-"
+//                    } else if (statistics.networkLatencyMsec < 0 || statistics.networkLatencyMsec > TimeUnit.SECONDS.toMillis(5)) {
+//                        "[time out of sync]"
+//                    } else {
+//                        "${statistics.networkLatencyMsec} ms"
+//                    }
+
+                    binding.tvStatistics.post {
+                        binding.tvStatistics.text = text
+                    }
+                }
+            }
+            statisticsTimer = Timer("${TAG}::Statistics").apply {
+                schedule(task, 0, 1000)
+            }
+        }
+    }
+
+    private fun stopStatistics() {
+        if (DEBUG) Log.v(TAG, "stopStatistics()")
+        statisticsTimer?.apply {
+            Log.i(TAG, "Stop statistics")
+            cancel()
+        }
+        statisticsTimer = null
     }
 
     companion object {

@@ -23,8 +23,10 @@ class VideoDecodeThread (
         private val width: Int,
         private val height: Int,
         private val rotation: Int, // 0, 90, 180, 270
-        private val videoFrameQueue: FrameQueue,
-        private val videoDecoderListener: VideoDecoderListener) : Thread() {
+        private val videoFrameQueue: VideoFrameQueue,
+        private val videoDecoderListener: VideoDecoderListener,
+        private var videoDecoderType: DecoderType = DecoderType.HARDWARE
+) : Thread() {
 
     private val uiHandler = Handler(Looper.getMainLooper())
     private var exitFlag = AtomicBoolean(false)
@@ -43,11 +45,48 @@ class VideoDecodeThread (
         fun onVideoDecoderFirstFrameRendered() {}
     }
 
+    /** Decoder latency used for statistics */
+    @Volatile private var decoderLatency = -1
+    /** Flag for allowing calculating latency */
+    private var decoderLatencyRequested = false
+    /** Network latency used for statistics */
+    @Volatile private var networkLatency = -1
+    private var videoDecoderName: String? = null
+
     fun stopAsync() {
         if (DEBUG) Log.v(TAG, "stopAsync()")
         exitFlag.set(true)
         // Wake up sleep() code
         interrupt()
+    }
+
+    /**
+     * Currently used video decoder. Video decoder can be changed on runtime.
+     * If videoDecoderType set to HARDWARE, it can be switched to SOFTWARE in case of decoding issue
+     * (e.g. hardware decoder does not support the stream resolution).
+     * If videoDecoderType set to SOFTWARE, it will always remain SOFTWARE (no any changes).
+     */
+    fun getCurrentVideoDecoderType(): DecoderType {
+        return videoDecoderType
+    }
+
+    fun getCurrentVideoDecoderName(): String? {
+        return videoDecoderName
+    }
+
+    /**
+     * Get frames decoding/rendering latency in msec. Returns -1 if not supported.
+     */
+    fun getCurrentVideoDecoderLatencyMsec(): Int {
+        decoderLatencyRequested = true
+        return decoderLatency
+    }
+
+    /**
+     * Get network latency in msec. Returns -1 if not supported.
+     */
+    fun getCurrentNetworkLatencyMsec(): Int {
+        return networkLatency
     }
 
     private fun getDecoderSafeWidthHeight(decoder: MediaCodec): Pair<Int, Int> {
@@ -109,7 +148,7 @@ class VideoDecodeThread (
         return format
     }
 
-    private enum class DecoderType {
+    enum class DecoderType {
         HARDWARE,
         SOFTWARE // fallback
     }
@@ -143,6 +182,8 @@ class VideoDecodeThread (
                 }
             }
         }
+        this.videoDecoderType = decoderType
+        this.videoDecoderName = decoder.name
 
         val frameRenderedListener = OnFrameRenderedListener { _, _, _ ->
             if (!firstFrameRendered) {
@@ -173,7 +214,8 @@ class VideoDecodeThread (
 
     private fun stopAndReleaseVideoDecoder(decoder: MediaCodec) {
         if (DEBUG) Log.v(TAG, "stopAndReleaseVideoDecoder()")
-        Log.i(TAG, "Stopping decoder...")
+        val type = videoDecoderType.toString().lowercase()
+        Log.i(TAG, "Stopping $type video decoder...")
         try {
             decoder.stop()
             Log.i(TAG, "Decoder successfully stopped")
@@ -203,9 +245,9 @@ class VideoDecodeThread (
         try {
             Log.i(TAG, "Starting hardware video decoder...")
             var decoder = try {
-                createVideoDecoderAndStart(DecoderType.HARDWARE)
+                createVideoDecoderAndStart(videoDecoderType)
             } catch (e: Throwable) {
-                Log.e(TAG, "Failed to start hardware video decoder (${e.message})", e)
+                Log.e(TAG, "Failed to start $videoDecoderType video decoder (${e.message})", e)
                 Log.i(TAG, "Starting software video decoder...")
                 try {
                     createVideoDecoderAndStart(DecoderType.SOFTWARE)
@@ -220,6 +262,10 @@ class VideoDecodeThread (
             val bufferInfo = MediaCodec.BufferInfo()
 
             try {
+                // Map for calculating decoder rendering latency.
+                // key - original frame timestamp, value - timestamp when frame was added to the map
+                val keyframesTimestamps = HashMap<Long, Long>()
+
                 // Main loop
                 while (!exitFlag.get()) {
                     try {
@@ -238,8 +284,23 @@ class VideoDecodeThread (
                                 // Release input buffer
                                 decoder.queueInputBuffer(inIndex, 0, 0, 0L, 0)
                             } else {
+                                // Add timestamp for keyframe to calculating latency further.
+                                if ((DEBUG || decoderLatencyRequested) && frame.isKeyframe) {
+                                    if (keyframesTimestamps.size > 5) {
+                                        // Something wrong with map. Allow only 5 map entries.
+                                        keyframesTimestamps.clear()
+                                    }
+                                    keyframesTimestamps[frame.timestampMs] = System.currentTimeMillis()
+                                    Log.d(TAG, "Added ${frame.timestampMs}")
+                                }
+                                // Calculate network latency
+                                networkLatency = if (frame.capturedTimestampMs > -1)
+                                    (frame.timestampMs - frame.capturedTimestampMs).toInt()
+                                else
+                                    -1
+
                                 byteBuffer?.put(frame.data, frame.offset, frame.length)
-                                decoder.queueInputBuffer(inIndex, frame.offset, frame.length, frame.timestamp, 0)
+                                decoder.queueInputBuffer(inIndex, frame.offset, frame.length, frame.timestampMs, 0)
                             }
                         }
 
@@ -283,6 +344,15 @@ class VideoDecodeThread (
                                 // Frame decoded
                                 else -> {
                                     if (outIndex >= 0) {
+                                        if (DEBUG || decoderLatencyRequested) {
+                                            val ts = bufferInfo.presentationTimeUs
+                                            val removed = keyframesTimestamps.remove(ts)?.apply {
+                                                decoderLatency = (System.currentTimeMillis() - this).toInt()
+                                                Log.d(TAG, "Removed $this")
+                                            }
+
+                                        }
+
                                         val render = bufferInfo.size != 0 && !exitFlag.get() && surface.isValid
                                         if (DEBUG) Log.i(TAG, "\tFrame decoded [outIndex=$outIndex, length=${bufferInfo.size}, render=$render]")
                                         decoder.releaseOutputBuffer(outIndex, render)

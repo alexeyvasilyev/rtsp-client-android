@@ -11,15 +11,28 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.alexvas.rtsp.RtspClient
 import com.alexvas.rtsp.RtspClient.SdpInfo
+import com.alexvas.rtsp.codec.AudioCodecType
 import com.alexvas.rtsp.codec.AudioDecodeThread
+import com.alexvas.rtsp.codec.AudioFrameQueue
 import com.alexvas.rtsp.codec.FrameQueue
+import com.alexvas.rtsp.codec.VideoCodecType
 import com.alexvas.rtsp.codec.VideoDecodeThread
+import com.alexvas.rtsp.codec.VideoFrameQueue
 import com.alexvas.utils.NetUtils
+import com.alexvas.utils.VideoCodecUtils
 import java.net.Socket
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.min
 
 
 open class RtspSurfaceView: SurfaceView {
+
+    class Statistics {
+        var videoDecoderType = VideoDecodeThread.DecoderType.HARDWARE
+        var videoDecoderName: String? = null
+        var videoDecoderLatencyMsec = -1
+        var networkLatencyMsec = -1
+    }
 
     private lateinit var uri: Uri
     private var username: String? = null
@@ -28,8 +41,8 @@ open class RtspSurfaceView: SurfaceView {
     private var requestVideo = true
     private var requestAudio = true
     private var rtspThread: RtspThread? = null
-    private var videoFrameQueue = FrameQueue(60)
-    private var audioFrameQueue = FrameQueue(10)
+    private var videoFrameQueue = VideoFrameQueue(60)
+    private var audioFrameQueue = AudioFrameQueue(10)
     private var videoDecodeThread: VideoDecodeThread? = null
     private var audioDecodeThread: AudioDecodeThread? = null
     private var surfaceWidth = 1920
@@ -42,6 +55,19 @@ open class RtspSurfaceView: SurfaceView {
     private var audioChannelCount: Int = 0
     private var audioCodecConfig: ByteArray? = null
     private var firstFrameRendered = false
+    var statistics = Statistics()
+        get() {
+            videoDecodeThread?.let { decoder ->
+                field.apply {
+                    networkLatencyMsec = decoder.getCurrentNetworkLatencyMsec()
+                    videoDecoderLatencyMsec = decoder.getCurrentVideoDecoderLatencyMsec()
+                    videoDecoderType = decoder.getCurrentVideoDecoderType()
+                    videoDecoderName = decoder.getCurrentVideoDecoderName()
+                }
+            }
+            return field
+        }
+        private set
 
     /**
      * Show more debug info on console on runtime.
@@ -57,6 +83,11 @@ open class RtspSurfaceView: SurfaceView {
             if (value == 0 || value == 90 || value == 180 || value == 270)
                 field = value
         }
+
+    /**
+     * Requested video decoder type.
+     */
+    var videoDecoderType = VideoDecodeThread.DecoderType.HARDWARE
 
     interface RtspStatusListener {
         fun onRtspStatusConnecting() {}
@@ -96,7 +127,16 @@ open class RtspSurfaceView: SurfaceView {
                     val data = ByteArray(sps.size + pps.size)
                     sps.copyInto(data, 0, 0, sps.size)
                     pps.copyInto(data, sps.size, 0, pps.size)
-                    videoFrameQueue.push(FrameQueue.Frame(data, 0, data.size, 0))
+                    videoFrameQueue.push(
+                        FrameQueue.VideoFrame(
+                            VideoCodecType.H264,
+                            isKeyframe = true,
+                            data,
+                            0,
+                            data.size,
+                            0
+                        )
+                    )
                 } else {
                     if (DEBUG) Log.d(TAG, "RTSP SPS and PPS NAL units missed in SDP")
                 }
@@ -118,11 +158,31 @@ open class RtspSurfaceView: SurfaceView {
         }
 
         override fun onRtspVideoNalUnitReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
-            if (length > 0) videoFrameQueue.push(FrameQueue.Frame(data, offset, length, timestamp))
+            if (length > 0)
+                videoFrameQueue.push(
+                    FrameQueue.VideoFrame(
+                        VideoCodecType.H264,
+                        // Search for NAL_IDR_SLICE within first 1KB maximum
+                        isKeyframe = VideoCodecUtils.isAnyH264KeyFrame(data, offset, min(length, 1000)),
+                        data,
+                        offset,
+                        length,
+                        timestamp,
+                        capturedTimestampMs = System.currentTimeMillis()
+                    )
+                )
         }
 
         override fun onRtspAudioSampleReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
-            if (length > 0) audioFrameQueue.push(FrameQueue.Frame(data, offset, length, timestamp))
+            if (length > 0)
+                audioFrameQueue.push(
+                    FrameQueue.AudioFrame(
+                        AudioCodecType.AAC_LC,
+                        data, offset,
+                        length,
+                        timestamp
+                    )
+                )
         }
 
         override fun onRtspDisconnecting() {
@@ -229,9 +289,10 @@ open class RtspSurfaceView: SurfaceView {
         if (rtspThread != null) rtspThread?.stopAsync()
         this.requestVideo = requestVideo
         this.requestAudio = requestAudio
-        rtspThread = RtspThread()
-        rtspThread!!.name = "RTSP IO thread [${getUriName()}]"
-        rtspThread!!.start()
+        rtspThread = RtspThread().apply {
+            name = "RTSP IO thread [${getUriName()}]"
+            start()
+        }
     }
 
     fun stop() {
@@ -299,7 +360,15 @@ open class RtspSurfaceView: SurfaceView {
             firstFrameRendered = false
             Log.i(TAG, "Starting video decoder with mime type \"$videoMimeType\"")
             videoDecodeThread = VideoDecodeThread(
-                holder.surface, videoMimeType, surfaceWidth, surfaceHeight, videoRotation, videoFrameQueue, videoDecoderListener)
+                holder.surface,
+                videoMimeType,
+                surfaceWidth,
+                surfaceHeight,
+                videoRotation,
+                videoFrameQueue,
+                videoDecoderListener,
+                videoDecoderType
+            )
             videoDecodeThread!!.apply {
                 name = "RTSP video thread [${getUriName()}]"
                 start()

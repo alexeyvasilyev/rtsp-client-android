@@ -11,7 +11,7 @@ class AudioDecodeThread (
         private val sampleRate: Int,
         private val channelCount: Int,
         private val codecConfig: ByteArray?,
-        private val audioFrameQueue: FrameQueue) : Thread() {
+        private val audioFrameQueue: AudioFrameQueue) : Thread() {
 
     private var isRunning = true
 
@@ -141,7 +141,7 @@ class AudioDecodeThread (
                         decoder.queueInputBuffer(inIndex, 0, 0, 0L, 0)
                     } else {
                         byteBuffer?.put(audioFrame.data, audioFrame.offset, audioFrame.length)
-                        decoder.queueInputBuffer(inIndex, audioFrame.offset, audioFrame.length, audioFrame.timestamp, 0)
+                        decoder.queueInputBuffer(inIndex, audioFrame.offset, audioFrame.length, audioFrame.timestampMs, 0)
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()

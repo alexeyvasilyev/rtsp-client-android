@@ -140,69 +140,69 @@ public final class VideoCodecUtils {
 //        return -1;
 //    }
 
-//    public static boolean isAnyH264KeyFrame(@Nullable byte[] data, int offset, int length) {
-//        if (data == null || length <= 0)
-//            return false;
-//
-//        AtomicInteger nalUnitPrefixSize = new AtomicInteger(-1);
-//        long timestamp = System.currentTimeMillis();
-//        boolean nalUnitsFound = false;
-//        while (true) {
-//            int nalUnitIndex = searchForH264NalUnitStart(
-//                    data,
-//                    offset,
-//                    length,
-//                    nalUnitPrefixSize);
-//
-//            if (nalUnitIndex >= 0) {
-//                nalUnitsFound = true;
-//                int nalUnitOffset = nalUnitIndex + nalUnitPrefixSize.get();
-//                byte nalUnitTypeOctet = data[nalUnitOffset];
-//                byte nalUnitType = (byte)(nalUnitTypeOctet & 0x1f);
-//
-//                if (DEBUG)
-//                    Log.d(TAG, "NAL unit type: " + getH264NalUnitTypeString(nalUnitType));
-//
-//                switch (nalUnitType) {
-//                    case NAL_IDR_SLICE:
-//                        return true;
-//                    case NAL_SLICE:
-//                        return false;
-//                }
-//
-//                // Continue searching
-//                offset = nalUnitOffset;
-//
-//                // Check that we are not too long here
-//                if (System.currentTimeMillis() - timestamp > 100) {
-//                    Log.w(TAG, "Cannot process data within 100 msec in " + length +
-//                            " bytes (index=" + nalUnitIndex + ", length=" + length + ")");
-//                    break;
-//                }
-//            } else {
-//                break;
-//            }
-//        }
-//
-//        // Maybe this is FLV H264 I-frame
-//        // http://195.154.182.204:8083/camera1/h264
-//        // 0, 0, 0, 23, 103
-////        final byte[] FLV_H264_IFRAME = { 0, 0, 0, 0x17 };
-////        return ByteUtils.memcmp(FLV_H264_IFRAME, 0, data, 0, FLV_H264_IFRAME.length);
-//
-//        //noinspection RedundantIfStatement
-//        if (nalUnitsFound) {
-//            // NAL units found, but no key frame
-//            return false;
-//        } else {
-//            // FLV? Force it to decode.
-//            // FLV decoding will work on software H.264 decoder only.
-//            return true;
-//        }
-//
-////      Log.d(TAG, "Non keyframe");
-////      return false;
-//    }
+    public static boolean isAnyH264KeyFrame(@Nullable byte[] data, int offset, int length) {
+        if (data == null || length <= 0)
+            return false;
+
+        AtomicInteger nalUnitPrefixSize = new AtomicInteger(-1);
+        long timestamp = System.currentTimeMillis();
+        boolean nalUnitsFound = false;
+        while (true) {
+            int nalUnitIndex = searchForH264NalUnitStart(
+                    data,
+                    offset,
+                    length,
+                    nalUnitPrefixSize);
+
+            if (nalUnitIndex >= 0) {
+                nalUnitsFound = true;
+                int nalUnitOffset = nalUnitIndex + nalUnitPrefixSize.get();
+                byte nalUnitTypeOctet = data[nalUnitOffset];
+                byte nalUnitType = (byte)(nalUnitTypeOctet & 0x1f);
+
+                if (DEBUG)
+                    Log.d(TAG, "NAL unit type: " + getH264NalUnitTypeString(nalUnitType));
+
+                switch (nalUnitType) {
+                    case NAL_IDR_SLICE:
+                        return true;
+                    case NAL_SLICE:
+                        return false;
+                }
+
+                // Continue searching
+                offset = nalUnitOffset;
+
+                // Check that we are not too long here
+                if (System.currentTimeMillis() - timestamp > 100) {
+                    Log.w(TAG, "Cannot process data within 100 msec in " + length +
+                            " bytes (index=" + nalUnitIndex + ", length=" + length + ")");
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+
+        // Maybe this is FLV H264 I-frame
+        // http://195.154.182.204:8083/camera1/h264
+        // 0, 0, 0, 23, 103
+//        final byte[] FLV_H264_IFRAME = { 0, 0, 0, 0x17 };
+//        return ByteUtils.memcmp(FLV_H264_IFRAME, 0, data, 0, FLV_H264_IFRAME.length);
+
+        //noinspection RedundantIfStatement
+        if (nalUnitsFound) {
+            // NAL units found, but no key frame
+            return false;
+        } else {
+            // FLV? Force it to decode.
+            // FLV decoding will work on software H.264 decoder only.
+            return true;
+        }
+
+//      Log.d(TAG, "Non keyframe");
+//      return false;
+    }
 
 //    public static boolean isH264KeyFrame(@Nullable byte[] data, int offset, int length) {
 //        boolean isKeyFrame = false;
