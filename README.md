@@ -12,8 +12,9 @@ Unlike [ExoPlayer](https://github.com/google/ExoPlayer) which also supports RTSP
 - RTSP/RTSPS over TCP.
 - Video H.264 only.
 - Audio AAC LC only.
-- Basic/Digest authentification.
+- Basic/Digest authentication.
 - Supports majority of RTSP IP cameras.
+- Uses Android's Low-Latency MediaCodec by default if available.
 
 
 ## Permissions:

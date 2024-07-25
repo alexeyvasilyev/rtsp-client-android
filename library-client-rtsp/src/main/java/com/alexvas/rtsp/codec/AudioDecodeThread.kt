@@ -1,6 +1,7 @@
 package com.alexvas.rtsp.codec
 
 import android.media.*
+import android.os.Process
 import android.util.Log
 import java.nio.ByteBuffer
 
@@ -23,6 +24,8 @@ class AudioDecodeThread (
 
     override fun run() {
         if (DEBUG) Log.d(TAG, "$name started")
+
+        Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
 
         // Creating audio decoder
         val decoder = MediaCodec.createDecoderByType(mimeType)

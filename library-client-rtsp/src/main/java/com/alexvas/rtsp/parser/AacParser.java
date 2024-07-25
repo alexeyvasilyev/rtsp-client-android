@@ -5,8 +5,8 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.google.android.exoplayer2.util.ParsableBitArray;
-import com.google.android.exoplayer2.util.ParsableByteArray;
+import androidx.media3.common.util.ParsableBitArray;
+import androidx.media3.common.util.ParsableByteArray;
 
 // https://tools.ietf.org/html/rfc3640
 //          +---------+-----------+-----------+---------------+

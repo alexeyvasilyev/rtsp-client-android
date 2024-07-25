@@ -18,11 +18,12 @@ project.afterEvaluate {
 }
 
 android {
-    compileSdkVersion compile_sdk_version
+
+    compileSdk compile_sdk_version
 
     defaultConfig {
-        minSdkVersion min_sdk_version
-        targetSdkVersion target_sdk_version
+        minSdk min_sdk_version
+        targetSdk target_sdk_version
     }
 
     compileOptions {
@@ -31,7 +32,7 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     namespace 'com.alexvas.rtsp'
@@ -39,5 +40,5 @@ android {
 
 dependencies {
     implementation "androidx.annotation:annotation:$androidXAnnotationVersion"
-    implementation "com.google.android.exoplayer:exoplayer-core:$exoplayerVersion"
+    implementation "androidx.media3:media3-exoplayer:$exoplayerVersion"
 }

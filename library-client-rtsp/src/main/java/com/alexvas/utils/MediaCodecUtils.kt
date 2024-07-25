@@ -2,8 +2,10 @@ package com.alexvas.utils
 
 import android.util.Log
 import android.util.Range
-import com.google.android.exoplayer2.mediacodec.MediaCodecInfo
-import com.google.android.exoplayer2.mediacodec.MediaCodecUtil
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import java.lang.Exception
 
 object MediaCodecUtils {
@@ -56,6 +58,28 @@ object MediaCodecUtils {
                 list.add(codec)
         }
         return list
+    }
+
+    /**
+     * Look through all decoders (if there are multiple)
+     * and select the one which supports low-latency.
+     */
+    @OptIn(UnstableApi::class)
+    fun getLowLatencyDecoder(decoders: List<MediaCodecInfo>): MediaCodecInfo? {
+        // Some devices can have several decoders, e.g.
+        // Samsung Fold 5:
+        //   "c2.qti.avc.decoder"
+        //   "c2.qti.avc.decoder.low_latency"
+        for (decoder in decoders) {
+            if (decoder.name.contains("low_latency"))
+                return decoder
+        }
+        // Another approach to find decoder with low-latency is to call
+        // MediaCodec.createByCodecName(name) for every decoder to get decoder instance and then call
+        // decoder.codecInfo.getCapabilitiesForType(mimeType).isFeatureSupported(MediaCodecInfo.CodecCapabilities.FEATURE_LowLatency)
+
+        // No low-latency decoder found.
+        return null
     }
 
 }

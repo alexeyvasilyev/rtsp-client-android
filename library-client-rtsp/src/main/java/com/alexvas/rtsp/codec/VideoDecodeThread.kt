@@ -7,11 +7,12 @@ import android.media.MediaFormat
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.Process
 import android.util.Log
 import android.view.Surface
 import com.alexvas.utils.MediaCodecUtils
 import com.alexvas.utils.capabilitiesToString
-import com.google.android.exoplayer2.util.Util
+import androidx.media3.common.util.Util
 import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -100,6 +101,11 @@ class VideoDecodeThread (
         else
             Log.i(TAG, "Configuring surface ${safeWidthHeight.first}x${safeWidthHeight.second} w/ '$mimeType'")
         format.setInteger(MediaFormat.KEY_ROTATION, rotation)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // format.setFeatureEnabled(android.media.MediaCodecInfo.CodecCapabilities.FEATURE_LowLatency, true)
+            // Request low-latency for the decoder. Not all of the decoders support that.
+            format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
+        }
         return format
     }
 
@@ -118,7 +124,11 @@ class VideoDecodeThread (
                     Log.w(TAG, "Cannot get hardware video decoders for mime type '$mimeType'. Using default one.")
                     MediaCodec.createDecoderByType(mimeType)
                 } else {
-                    val name = hwDecoders[0].name
+                    val lowLatencyDecoder = MediaCodecUtils.getLowLatencyDecoder(hwDecoders)
+                    val name = lowLatencyDecoder?.let {
+                        Log.i(TAG, "[$name] Dedicated low-latency decoder found '${lowLatencyDecoder.name}'")
+                        lowLatencyDecoder.name
+                    } ?: hwDecoders[0].name
                     MediaCodec.createByCodecName(name)
                 }
             }
@@ -146,6 +156,18 @@ class VideoDecodeThread (
         val format = getDecoderMediaFormat(decoder)
         decoder.configure(format, surface, null, 0)
         decoder.start()
+
+        val capabilities = decoder.codecInfo.getCapabilitiesForType(mimeType)
+        val lowLatencySupport = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            capabilities.isFeatureSupported(android.media.MediaCodecInfo.CodecCapabilities.FEATURE_LowLatency)
+        } else {
+            false
+        }
+        Log.i(TAG, "[$name] Video decoder '${decoder.name}' started " +
+                "(${if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) { if (decoder.codecInfo.isHardwareAccelerated) "hardware" else "software" } else ""}, " +
+                "${capabilities.capabilitiesToString()}, " +
+                "${if (lowLatencySupport) "w/" else "w/o"} low-latency support)")
+
         return decoder
     }
 
@@ -172,6 +194,10 @@ class VideoDecodeThread (
     override fun run() {
         if (DEBUG) Log.d(TAG, "$name started")
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            Process.setThreadPriority(Process.THREAD_PRIORITY_VIDEO)
+        }
+
         videoDecoderListener.onVideoDecoderStarted()
 
         try {
@@ -190,8 +216,6 @@ class VideoDecodeThread (
                     return
                 }
             }
-
-            Log.i(TAG, "Video decoder '${decoder.name}' started (${decoder.codecInfo.getCapabilitiesForType(mimeType).capabilitiesToString()})")
 
             val bufferInfo = MediaCodec.BufferInfo()
 
