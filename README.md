@@ -1,5 +1,5 @@
 # rtsp-client-android
-<b>Lightweight RTSP client library for Android</b> with almost zero lag video display. Designed for lag criticial applications (e.g. video surveillance from drones).
+<b>Lightweight RTSP client library for Android</b> with almost zero lag video decoding (achived 20 msec video decoding latency on some RTSP streams). Designed for lag criticial applications (e.g. video surveillance from drones).
 
 Unlike [AndroidX Media ExoPlayer](https://github.com/androidx/media) which also supports RTSP, this library does not make any video buffering. Video frames are shown immidiately when they arrive.
 
