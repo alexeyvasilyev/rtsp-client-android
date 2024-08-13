@@ -108,5 +108,5 @@ Video decoder latency can vary significantly on different Android devices and on
 
 For the same profile/level and resolution (but different cameras) the latency in best cases can can be 20 msec, in worst cases 1200 msec.
 
-To decrease latency be sure you use the lowest possible H.264 video stream profile and level (enable `debug` in the library and check SPS frame params `profile_idc` and `level_idc` in the log). Baseline profile should have the lowest decoder latency.
-Check `max_num_reorder_frames` param as well. For best latency value should be 0.
+To decrease latency be sure you use the lowest possible H.264 video stream profile and level (enable `debug` in the library and check SPS frame params `profile_idc` and `level_idc` in the log). `Baseline profile` should have the lowest possible decoder latency.
+Check `max_num_reorder_frames` param as well. For best latency it's value should be `0`.
