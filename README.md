@@ -1,5 +1,5 @@
 # rtsp-client-android
-<b>Lightweight RTSP client library for Android</b> with almost zero lag video decoding (achived 20 msec video decoding latency on some RTSP streams). Designed for lag criticial applications (e.g. video surveillance from drones).
+<b>Lightweight RTSP client library for Android</b> with almost zero lag video decoding (achieved 20 msec video decoding latency on some RTSP streams). Designed for lag criticial applications (e.g. video surveillance from drones).
 
 Unlike [AndroidX Media ExoPlayer](https://github.com/androidx/media) which also supports RTSP, this library does not make any video buffering. Video frames are shown immidiately when they arrive.
 
@@ -96,3 +96,17 @@ rtspClient.execute()
 
 NetUtils.closeSocket(sslSocket)
 ```
+
+## How to get lowest possible latency:
+There are two types of latencies in the library:
+
+### Network latency caused by network
+If you want lowest possible network latency, be sure that both Android device and RTSP camera are connected to the same network by the Ethernet cable (not WiFi).
+
+### Video decoder latency
+Video decoder latency can vary significantly on different Android devices and on different RTSP camera streams.
+
+For the same profile/level and resolution (but different cameras) the latency in best cases can can be 20 msec, in worst cases 1200 msec.
+
+To decrease latency be sure you use the lowest possible H.264 video stream profile and level (enable `debug` in the library and check SPS frame params `profile_idc` and `level_idc` in the log).
+Check `max_num_reorder_frames` param as well. For best latency value should be 0.
