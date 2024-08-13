@@ -3,8 +3,8 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
 android {
-    compileSdk 34
-    buildToolsVersion "34.0.0"
+
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.alexvas.rtsp.demo"
@@ -12,8 +12,6 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
-
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {

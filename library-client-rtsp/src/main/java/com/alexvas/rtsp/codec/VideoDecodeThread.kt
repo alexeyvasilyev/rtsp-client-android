@@ -290,8 +290,9 @@ class VideoDecodeThread (
                                         // Something wrong with map. Allow only 5 map entries.
                                         keyframesTimestamps.clear()
                                     }
-                                    keyframesTimestamps[frame.timestampMs] = System.currentTimeMillis()
-                                    Log.d(TAG, "Added ${frame.timestampMs}")
+                                    val l = System.currentTimeMillis()
+                                    keyframesTimestamps[frame.timestampMs] = l
+//                                  Log.d(TAG, "Added $l")
                                 }
                                 // Calculate network latency
                                 networkLatency = if (frame.capturedTimestampMs > -1)
@@ -346,9 +347,9 @@ class VideoDecodeThread (
                                     if (outIndex >= 0) {
                                         if (DEBUG || decoderLatencyRequested) {
                                             val ts = bufferInfo.presentationTimeUs
-                                            val removed = keyframesTimestamps.remove(ts)?.apply {
+                                            keyframesTimestamps.remove(ts)?.apply {
                                                 decoderLatency = (System.currentTimeMillis() - this).toInt()
-                                                Log.d(TAG, "Removed $this")
+//                                              Log.d(TAG, "Removed $this")
                                             }
 
                                         }

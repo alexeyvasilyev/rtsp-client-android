@@ -1,5 +1,6 @@
 package com.alexvas.rtsp.widget
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.media.MediaFormat
 import android.net.Uri
@@ -9,6 +10,9 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.container.NalUnitUtil
 import com.alexvas.rtsp.RtspClient
 import com.alexvas.rtsp.RtspClient.SdpInfo
 import com.alexvas.rtsp.codec.AudioCodecType
@@ -123,6 +127,7 @@ open class RtspSurfaceView: SurfaceView {
                 val sps: ByteArray? = sdpInfo.videoTrack?.sps
                 val pps: ByteArray? = sdpInfo.videoTrack?.pps
                 // Initialize decoder
+                @SuppressLint("UnsafeOptInUsageError")
                 if (sps != null && pps != null) {
                     val data = ByteArray(sps.size + pps.size)
                     sps.copyInto(data, 0, 0, sps.size)
@@ -137,6 +142,24 @@ open class RtspSurfaceView: SurfaceView {
                             0
                         )
                     )
+                    try {
+                        val offset = if (sps[3] == 1.toByte()) 5 else 4
+                        val spsData = NalUnitUtil.parseSpsNalUnitPayload(
+                            data, offset, data.size - offset)
+                        if (spsData.maxNumReorderFrames > 0) {
+                            Log.w(TAG, "SPS frame param max_num_reorder_frames=" +
+                                        "${spsData.maxNumReorderFrames} is too high" +
+                                        " for low latency decoding (expecting 0)."
+                            )
+                        }
+                        if (debug) {
+                            Log.d(TAG, "SPS frame: " + sps.toHexString(0, sps.size))
+                            Log.d(TAG, "\t${spsData.spsDataToString()}")
+                            Log.d(TAG, "PPS frame: " + pps.toHexString(0, pps.size))
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                 } else {
                     if (DEBUG) Log.d(TAG, "RTSP SPS and PPS NAL units missed in SDP")
                 }
@@ -411,4 +434,29 @@ open class RtspSurfaceView: SurfaceView {
         private const val DEFAULT_RTSP_PORT = 554
     }
 
+}
+
+@OptIn(UnstableApi::class)
+fun NalUnitUtil.SpsData.spsDataToString(): String {
+    return "" +
+        "width=${this.width}, " +
+        "height=${this.height}, " +
+        "profile_idc=${this.profileIdc}, " +
+        "constraint_set_flags=${this.constraintsFlagsAndReservedZero2Bits}, " +
+        "level_idc=${this.levelIdc}, " +
+        "max_num_ref_frames=${this.maxNumRefFrames}, " +
+        "frame_mbs_only_flag=${this.frameMbsOnlyFlag}, " +
+        "log2_max_frame_num=${this.frameNumLength}, " +
+        "pic_order_cnt_type=${this.picOrderCountType}, " +
+        "log2_max_pic_order_cnt_lsb=${this.picOrderCntLsbLength}, " +
+        "delta_pic_order_always_zero_flag=${this.deltaPicOrderAlwaysZeroFlag}, " +
+        "max_reorder_frames=${this.maxNumReorderFrames}"
+}
+
+fun ByteArray.toHexString(offset: Int, maxLength: Int): String {
+    val length = minOf(maxLength, size - offset)
+    return sliceArray(offset until (offset + length))
+        .joinToString(separator = "") { byte ->
+            "%02x ".format(byte).uppercase()
+        }
 }

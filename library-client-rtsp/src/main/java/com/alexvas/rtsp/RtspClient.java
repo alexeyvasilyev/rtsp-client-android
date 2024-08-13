@@ -18,6 +18,7 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Serial;
 import java.math.BigInteger;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -222,6 +223,7 @@ public class RtspClient {
     }
 
     private final static class NoResponseHeadersException extends IOException {
+        @Serial
         private static final long serialVersionUID = 1L;
     }
 
