@@ -51,6 +51,7 @@ class LiveFragment : Fragment() {
                 bnStartStop.text = "Stop RTSP"
                 pbLoading.visibility = View.GONE
             }
+            setKeepScreenOn(true)
         }
 
         override fun onRtspStatusDisconnecting() {
@@ -74,6 +75,7 @@ class LiveFragment : Fragment() {
                 etRtspPassword.isEnabled = true
                 tgRotation.isEnabled = true
             }
+            setKeepScreenOn(false)
         }
 
         override fun onRtspStatusFailedUnauthorized() {
@@ -298,6 +300,20 @@ class LiveFragment : Fragment() {
         statisticsTimer = null
     }
 
+    private fun setKeepScreenOn(enable: Boolean) {
+        if (DEBUG) Log.v(TAG, "setKeepScreenOn(enable=$enable)")
+        if (enable) {
+            activity?.apply {
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                Log.i(TAG, "Enabled keep screen on")
+            }
+        } else {
+            activity?.apply {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                Log.i(TAG, "Disabled keep screen on")
+            }
+        }
+    }
     companion object {
         private val TAG: String = LiveFragment::class.java.simpleName
         private const val DEBUG = true

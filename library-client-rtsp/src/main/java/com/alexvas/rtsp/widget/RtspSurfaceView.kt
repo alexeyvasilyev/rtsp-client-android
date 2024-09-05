@@ -181,19 +181,43 @@ open class RtspSurfaceView: SurfaceView {
         }
 
         override fun onRtspVideoNalUnitReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
-            if (length > 0)
-                videoFrameQueue.push(
-                    FrameQueue.VideoFrame(
-                        VideoCodecType.H264,
-                        // Search for NAL_IDR_SLICE within first 1KB maximum
-                        isKeyframe = VideoCodecUtils.isAnyH264KeyFrame(data, offset, min(length, 1000)),
+            if (DEBUG) Log.v(TAG, "onRtspVideoNalUnitReceived(length=$length)")
+
+            // Search for NAL_IDR_SLICE within first 1KB maximum
+            val isKeyframe = VideoCodecUtils.isAnyH264KeyFrame(data, offset, min(length, 1000))
+            if (debug) {
+                val nals = ArrayList<VideoCodecUtils.NalUnit>()
+                VideoCodecUtils.getH264NalUnits(data, offset, length, nals)
+                var b = StringBuilder()
+                for (nal in nals) {
+                    b.append(VideoCodecUtils.getH264NalUnitTypeString(nal.type)).append(" (${nal.length}), ")
+                }
+                if (b.length > 2)
+                    b = b.removeRange(b.length - 2, b.length) as StringBuilder
+                Log.d(TAG, "NALs: $b")
+                @SuppressLint("UnsafeOptInUsageError")
+                if (isKeyframe) {
+                    val sps = VideoCodecUtils.getSpsNalUnitFromArray(
                         data,
                         offset,
-                        length,
-                        timestamp,
-                        capturedTimestampMs = System.currentTimeMillis()
+                        // Check only first 100 bytes maximum. That's enough for finding SPS NAL unit.
+                        Integer.min(length, 100)
                     )
+                    Log.d(TAG, "\tKey frame received ($length} bytes, ts=${timestamp}," +
+                            " profile=${sps?.profileIdc}, level=${sps?.levelIdc})")
+                }
+            }
+            videoFrameQueue.push(
+                FrameQueue.VideoFrame(
+                    VideoCodecType.H264,
+                    isKeyframe,
+                    data,
+                    offset,
+                    length,
+                    timestamp,
+                    capturedTimestampMs = System.currentTimeMillis()
                 )
+            )
         }
 
         override fun onRtspAudioSampleReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
@@ -300,7 +324,7 @@ open class RtspSurfaceView: SurfaceView {
     }
 
     fun init(uri: Uri, username: String?, password: String?, userAgent: String?) {
-        if (DEBUG) Log.v(TAG, "init(uri='$uri', username=$username, password=$password, userAgent='$userAgent')")
+        if (DEBUG) Log.v(TAG, "init(uri='$uri', username='$username', password='$password', userAgent='$userAgent')")
         this.uri = uri
         this.username = username
         this.password = password

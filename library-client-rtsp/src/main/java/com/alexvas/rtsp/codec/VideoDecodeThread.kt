@@ -52,6 +52,7 @@ class VideoDecodeThread (
     /** Network latency used for statistics */
     @Volatile private var networkLatency = -1
     private var videoDecoderName: String? = null
+    private var firstFrameDecoded = false
 
     fun stopAsync() {
         if (DEBUG) Log.v(TAG, "stopAsync()")
@@ -89,6 +90,7 @@ class VideoDecodeThread (
         return networkLatency
     }
 
+    @SuppressLint("UnsafeOptInUsageError")
     private fun getDecoderSafeWidthHeight(decoder: MediaCodec): Pair<Int, Int> {
         val capabilities = decoder.codecInfo.getCapabilitiesForType(mimeType).videoCapabilities
         return if (capabilities.isSizeSupported(width, height)) {
@@ -108,7 +110,7 @@ class VideoDecodeThread (
         // (no problems with width though). Use crop parameters to correctly determine height.
         val hasCrop =
             mediaFormat.containsKey(MediaFormat.KEY_CROP_RIGHT) && mediaFormat.containsKey(MediaFormat.KEY_CROP_LEFT) &&
-                    mediaFormat.containsKey(MediaFormat.KEY_CROP_BOTTOM) && mediaFormat.containsKey(MediaFormat.KEY_CROP_TOP)
+            mediaFormat.containsKey(MediaFormat.KEY_CROP_BOTTOM) && mediaFormat.containsKey(MediaFormat.KEY_CROP_TOP)
         val width =
             if (hasCrop)
                 mediaFormat.getInteger(MediaFormat.KEY_CROP_RIGHT) - mediaFormat.getInteger(MediaFormat.KEY_CROP_LEFT) + 1
@@ -156,6 +158,7 @@ class VideoDecodeThread (
     private fun createVideoDecoderAndStart(decoderType: DecoderType): MediaCodec {
         if (DEBUG) Log.v(TAG, "createVideoDecoderAndStart(decoderType=$decoderType)")
 
+        @SuppressLint("UnsafeOptInUsageError")
         val decoder = when (decoderType) {
             DecoderType.HARDWARE -> {
                 val hwDecoders = MediaCodecUtils.getHardwareDecoders(mimeType)
@@ -266,6 +269,9 @@ class VideoDecodeThread (
                 // key - original frame timestamp, value - timestamp when frame was added to the map
                 val keyframesTimestamps = HashMap<Long, Long>()
 
+                var frameQueuedMsec = System.currentTimeMillis()
+                var frameAlreadyDequeued = false
+
                 // Main loop
                 while (!exitFlag.get()) {
                     try {
@@ -301,6 +307,11 @@ class VideoDecodeThread (
                                     -1
 
                                 byteBuffer?.put(frame.data, frame.offset, frame.length)
+                                if (DEBUG) {
+                                    val l = System.currentTimeMillis()
+                                    Log.i(TAG, "\tFrame queued (${l - frameQueuedMsec}) ${if (frame.isKeyframe) "key frame" else ""}")
+                                    frameQueuedMsec = l
+                                }
                                 decoder.queueInputBuffer(inIndex, frame.offset, frame.length, frame.timestampMs, 0)
                             }
                         }
@@ -311,15 +322,13 @@ class VideoDecodeThread (
                         // Single input buffer frame can contain several frames, e.g. SPS + PPS + IDR.
                         // Thus dequeueOutputBuffer should be called several times.
                         // First time it obtains SPS + PPS, second one - IDR frame.
-                        var alreadyDequeued = false
                         do {
                             // For the first time wait for a frame within 100 msec, next times no timeout
-                            val timeout = if (alreadyDequeued) 0L else DEQUEUE_OUTPUT_BUFFER_TIMEOUT_US
-                            alreadyDequeued = true
+                            val timeout = if (frameAlreadyDequeued || !firstFrameDecoded) 0L else DEQUEUE_OUTPUT_BUFFER_TIMEOUT_US
                             val outIndex = decoder.dequeueOutputBuffer(bufferInfo, timeout)
                             when (outIndex) {
                                 // Resolution changed
-                                MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                                MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED, MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                                     Log.d(TAG, "Decoder format changed: ${decoder.outputFormat}")
                                     val widthHeight = getWidthHeight(decoder.outputFormat)
                                     val rotation = if (decoder.outputFormat.containsKey(MediaFormat.KEY_ROTATION)) {
@@ -337,10 +346,12 @@ class VideoDecodeThread (
                                             else -> videoDecoderListener.onVideoDecoderFormatChanged(widthHeight.first, widthHeight.second)
                                         }
                                     }
+                                    frameAlreadyDequeued = true
                                 }
                                 // No any frames in queue
                                 MediaCodec.INFO_TRY_AGAIN_LATER -> {
                                     if (DEBUG) Log.d(TAG, "No output from decoder available")
+                                    frameAlreadyDequeued = true
                                 }
                                 // Frame decoded
                                 else -> {
@@ -351,18 +362,23 @@ class VideoDecodeThread (
                                                 decoderLatency = (System.currentTimeMillis() - this).toInt()
 //                                              Log.d(TAG, "Removed $this")
                                             }
-
                                         }
 
                                         val render = bufferInfo.size != 0 && !exitFlag.get() && surface.isValid
-                                        if (DEBUG) Log.i(TAG, "\tFrame decoded [outIndex=$outIndex, length=${bufferInfo.size}, render=$render]")
+                                        if (DEBUG) Log.i(TAG, "\tFrame decoded [outIndex=$outIndex, render=$render]")
                                         decoder.releaseOutputBuffer(outIndex, render)
+                                        if (!firstFrameDecoded && render) {
+                                            firstFrameDecoded = true
+                                        }
+                                        frameAlreadyDequeued = false
                                     } else {
-                                        Log.e(TAG, "Obtaining frame failed w/ error code $outIndex (length: ${bufferInfo.size})")
+                                        Log.e(TAG, "Obtaining frame failed w/ error code $outIndex")
                                     }
                                 }
                             }
-                        } while (outIndex != MediaCodec.INFO_TRY_AGAIN_LATER)
+                        // For SPS/PPS frame request another frame (IDR)
+                        } while (outIndex == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED || outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED)
+//                      } while (outIndex != MediaCodec.INFO_TRY_AGAIN_LATER)
 
                         // All decoded frames have been rendered, we can stop playing now
                         if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {

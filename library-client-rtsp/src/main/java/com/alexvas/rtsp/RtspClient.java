@@ -126,6 +126,7 @@ public class RtspClient {
     private static final String TAG = RtspClient.class.getSimpleName();
             static final String TAG_DEBUG = TAG + " DBG";
     private static final boolean DEBUG = false;
+    private static final byte[] EMPTY_ARRAY = new byte[0];
 
     public final static int RTSP_CAPABILITY_NONE          = 0;
     public final static int RTSP_CAPABILITY_OPTIONS       = 1 << 1;
@@ -209,6 +210,9 @@ public class RtspClient {
         public int channels; // 1 - mono, 2 - stereo
         public String mode; // AAC-lbr, AAC-hbr
         public @Nullable byte[] config; // config=1210fff15081ffdffc
+    }
+
+    public static class ApplicationTrack extends Track {
     }
 
     private static final String CRLF = "\r\n";
@@ -593,7 +597,7 @@ public class RtspClient {
             int keepAliveTimeout,
             @NonNull RtspClientKeepAliveListener keepAliveListener)
     throws IOException {
-        byte[] data = new byte[0]; // Usually not bigger than MTU = 15KB
+        byte[] data = EMPTY_ARRAY; // Usually not bigger than MTU = 15KB
 
         final VideoRtpParser videoParser = new VideoRtpParser();
         final AacParser audioParser = (sdpInfo.audioTrack != null && sdpInfo.audioTrack.audioCodec == AUDIO_CODEC_AAC ?
@@ -602,6 +606,8 @@ public class RtspClient {
 
         byte[] nalUnitSps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.sps : null);
         byte[] nalUnitPps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.pps : null);
+        byte[] nalUnitSei = EMPTY_ARRAY;
+        int videoSeqNum = 0;
 
         long keepAliveSent = System.currentTimeMillis();
 
@@ -626,9 +632,12 @@ public class RtspClient {
 
             // Video
             if (sdpInfo.videoTrack != null && header.payloadType == sdpInfo.videoTrack.payloadType) {
+                if (videoSeqNum > header.sequenceNumber)
+                    Log.w(TAG, "Invalid video seq num " + videoSeqNum + "/" + header.sequenceNumber);
+                videoSeqNum = header.sequenceNumber;
                 byte[] nalUnit = videoParser.processRtpPacketAndGetNalUnit(data, header.payloadSize);
                 if (nalUnit != null) {
-                    byte type = VideoCodecUtils.getH264NalUnitType(nalUnit, 0, nalUnit.length);
+                    byte type = VideoCodecUtils.INSTANCE.getH264NalUnitType(nalUnit, 0, nalUnit.length);
 //                  Log.i(TAG, "NAL u: " + VideoCodecUtils.getH264NalUnitTypeString(type));
                     switch (type) {
                         case VideoCodecUtils.NAL_SPS:
@@ -637,36 +646,45 @@ public class RtspClient {
                             if (nalUnit.length > 100)
                                 listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, (long)(header.timeStamp * 11.111111));
                             break;
+
                         case VideoCodecUtils.NAL_PPS:
                             nalUnitPps = nalUnit;
                             // Looks like there is NAL_IDR_SLICE as well. Send it now.
                             if (nalUnit.length > 100)
                                 listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, (long)(header.timeStamp * 11.111111));
                             break;
+
+                        case VideoCodecUtils.NAL_SEI:
+                            nalUnitSei = nalUnit;
+                            break;
+
                         case VideoCodecUtils.NAL_IDR_SLICE:
                             // Combine IDR with SPS/PPS
                             if (nalUnitSps != null && nalUnitPps != null) {
-//                                byte[] nalUnitSppPpsIdr = new byte[nalUnitSps.length + nalUnitPps.length + nalUnit.length];
-//                                System.arraycopy(nalUnitSps, 0, nalUnitSppPpsIdr, 0, nalUnitSps.length);
-//                                System.arraycopy(nalUnitPps, 0, nalUnitSppPpsIdr, nalUnitSps.length, nalUnitPps.length);
-//                                System.arraycopy(nalUnit, 0, nalUnitSppPpsIdr, nalUnitSps.length + nalUnitPps.length, nalUnit.length);
-//                                listener.onRtspNalUnitReceived(nalUnitSppPpsIdr, 0, nalUnitSppPpsIdr.length, System.currentTimeMillis());
-                                byte[] nalUnitSppPps = new byte[nalUnitSps.length + nalUnitPps.length];
-                                System.arraycopy(nalUnitSps, 0, nalUnitSppPps, 0, nalUnitSps.length);
-                                System.arraycopy(nalUnitPps, 0, nalUnitSppPps, nalUnitSps.length, nalUnitPps.length);
-                                listener.onRtspVideoNalUnitReceived(nalUnitSppPps, 0, nalUnitSppPps.length, (long)(header.timeStamp * 11.111111));
-//                                listener.onRtspNalUnitReceived(nalUnitSppPps, 0, nalUnitSppPps.length, System.currentTimeMillis() / 10);
+                                byte[] nalUnitSppPpsIdr = new byte[nalUnitSps.length + nalUnitPps.length + nalUnitSei.length + nalUnit.length];
+                                System.arraycopy(nalUnitSps, 0, nalUnitSppPpsIdr, 0, nalUnitSps.length);
+                                System.arraycopy(nalUnitPps, 0, nalUnitSppPpsIdr, nalUnitSps.length, nalUnitPps.length);
+                                System.arraycopy(nalUnitSei, 0, nalUnitSppPpsIdr, nalUnitSps.length + nalUnitPps.length, nalUnitSei.length);
+                                System.arraycopy(nalUnit, 0, nalUnitSppPpsIdr,  nalUnitSps.length + nalUnitPps.length + nalUnitSei.length, nalUnit.length);
+                                listener.onRtspVideoNalUnitReceived(nalUnitSppPpsIdr, 0, nalUnitSppPpsIdr.length, (long)(header.timeStamp * 11.111111));
+//                              listener.onRtspVideoNalUnitReceived(nalUnitSppPpsIdr, 0, nalUnitSppPpsIdr.length, System.currentTimeMillis());
                                 // Send it only once
                                 nalUnitSps = null;
                                 nalUnitPps = null;
+                                nalUnitSei = EMPTY_ARRAY;
+                                break;
                             }
-//                            listener.onRtspNalUnitReceived(nalUnitSps, 0, nalUnitSps.length, System.currentTimeMillis());
-//                            listener.onRtspNalUnitReceived(nalUnitPps, 0, nalUnitPps.length, System.currentTimeMillis());
-//                            listener.onRtspNalUnitReceived(nalUnit, 0, nalUnit.length, System.currentTimeMillis());
-//                            break;
+
                         default:
-                            listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, (long)(header.timeStamp * 11.111111));
-//                            listener.onRtspNalUnitReceived(nalUnit, 0, nalUnit.length, System.currentTimeMillis() / 10);
+                            if (nalUnitSei.length == 0) {
+                                listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, (long)(header.timeStamp * 11.111111));
+                            } else {
+                                byte[] nalUnitSeiSlice = new byte[nalUnitSei.length + nalUnit.length];
+                                System.arraycopy(nalUnitSei, 0, nalUnitSeiSlice, 0, nalUnitSei.length);
+                                System.arraycopy(nalUnit, 0, nalUnitSeiSlice, nalUnitSei.length, nalUnit.length);
+                                listener.onRtspVideoNalUnitReceived(nalUnitSeiSlice, 0, nalUnitSeiSlice.length, (long)(header.timeStamp * 11.111111));
+                                nalUnitSei = EMPTY_ARRAY;
+                            }
                     }
                 }
 
@@ -866,11 +884,11 @@ public class RtspClient {
 
     /**
      * Get a list of tracks from SDP. Usually contains video and audio track only.
-     * @return array of 2 tracks. First is video track, second audio track.
+     * @return array of 3 tracks. First is video track, second audio track, third application track.
      */
     @NonNull
     private static Track[] getTracksFromDescribeParams(@NonNull List<Pair<String, String>> params) {
-        Track[] tracks = new Track[2];
+        Track[] tracks = new Track[3];
         Track currentTrack = null;
         for (Pair<String, String> param: params) {
             switch (param.first) {
@@ -885,9 +903,16 @@ public class RtspClient {
                         currentTrack = new AudioTrack();
                         tracks[1] = currentTrack;
 
+                    // m=application 0 RTP/AVP 99
+                    // a=rtpmap:99 com.my/90000
+                    } else if (param.second.startsWith("application")) {
+                        currentTrack = new ApplicationTrack();
+                        tracks[2] = currentTrack;
+
                     } else {
                         currentTrack = null;
                     }
+
                     if (currentTrack != null) {
                         // m=<media> <port>/<number of ports> <proto> <fmt> ...
                         String[] values = TextUtils.split(param.second, " ");
@@ -914,7 +939,7 @@ public class RtspClient {
                             if (currentTrack instanceof VideoTrack) {
                                 updateVideoTrackFromDescribeParam((VideoTrack)tracks[0], param);
                             // Audio
-                            } else {
+                            } else if (currentTrack instanceof AudioTrack) {
                                 updateAudioTrackFromDescribeParam((AudioTrack)tracks[1], param);
                             }
 
@@ -925,8 +950,8 @@ public class RtspClient {
                         // a=rtpmap:96 mpeg4-generic/44100/2
                         } else if (param.second.startsWith("rtpmap:")) {
                             // Video
+                            String[] values = TextUtils.split(param.second, " ");
                             if (currentTrack instanceof VideoTrack) {
-                                String[] values = TextUtils.split(param.second, " ");
                                 if (values.length > 1) {
                                     values = TextUtils.split(values[1], "/");
                                     if (values.length > 0) {
@@ -938,9 +963,9 @@ public class RtspClient {
                                         Log.i(TAG, "Video: " + values[0]);
                                     }
                                 }
+
                             // Audio
-                            } else {
-                                String[] values = TextUtils.split(param.second, " ");
+                            } else if (currentTrack instanceof AudioTrack) {
                                 if (values.length > 1) {
                                     AudioTrack track = ((AudioTrack) tracks[1]);
                                     values = TextUtils.split(values[1], "/");
@@ -960,6 +985,9 @@ public class RtspClient {
                                     }
                                 }
 
+                            // Application
+                            } else {
+                                // Do nothing
                             }
                         }
                     }
@@ -1075,27 +1103,39 @@ public class RtspClient {
             for (Pair<String, String> pair: params) {
                 switch (pair.first.toLowerCase()) {
                     case "sprop-parameter-sets" -> {
-                            String[] paramsSpsPps = TextUtils.split(pair.second, ",");
-                            if (paramsSpsPps.length > 1) {
-                                byte[] sps = Base64.decode(paramsSpsPps[0], Base64.NO_WRAP);
-                                byte[] pps = Base64.decode(paramsSpsPps[1], Base64.NO_WRAP);
-                                byte[] nalSps = new byte[sps.length + 4];
-                                byte[] nalPps = new byte[pps.length + 4];
-                                // Add 00 00 00 01 NAL unit header
-                                nalSps[0] = 0;
-                                nalSps[1] = 0;
-                                nalSps[2] = 0;
-                                nalSps[3] = 1;
-                                System.arraycopy(sps, 0, nalSps, 4, sps.length);
-                                nalPps[0] = 0;
-                                nalPps[1] = 0;
-                                nalPps[2] = 0;
-                                nalPps[3] = 1;
-                                System.arraycopy(pps, 0, nalPps, 4, pps.length);
-                                videoTrack.sps = nalSps;
-                                videoTrack.pps = nalPps;
-                            }
+                        String[] paramsSpsPps = TextUtils.split(pair.second, ",");
+                        if (paramsSpsPps.length > 1) {
+                            byte[] sps = Base64.decode(paramsSpsPps[0], Base64.NO_WRAP);
+                            byte[] pps = Base64.decode(paramsSpsPps[1], Base64.NO_WRAP);
+                            byte[] nalSps = new byte[sps.length + 4];
+                            byte[] nalPps = new byte[pps.length + 4];
+                            // Add 00 00 00 01 NAL unit header
+                            nalSps[0] = 0;
+                            nalSps[1] = 0;
+                            nalSps[2] = 0;
+                            nalSps[3] = 1;
+                            System.arraycopy(sps, 0, nalSps, 4, sps.length);
+                            nalPps[0] = 0;
+                            nalPps[1] = 0;
+                            nalPps[2] = 0;
+                            nalPps[3] = 1;
+                            System.arraycopy(pps, 0, nalPps, 4, pps.length);
+                            videoTrack.sps = nalSps;
+                            videoTrack.pps = nalPps;
                         }
+                    }
+                    // packetization-mode=1
+                    case "packetization-mode" -> {
+                        // 0 - single NAL unit (default)
+                        // 1 - non-interleaved mode (STAP-A and FU-A NAL units)
+                        // 2 - interleaved mode
+                        try {
+                            int mode = Integer.parseInt(pair.second);
+                            if (mode == 2)
+                                Log.e(TAG, "Interleaved packetization mode is not supported");
+                        } catch (NumberFormatException ignored) {
+                        }
+                    }
                 }
             }
         }
