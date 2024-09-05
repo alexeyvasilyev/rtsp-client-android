@@ -98,10 +98,12 @@ NetUtils.closeSocket(sslSocket)
 ```
 
 ## How to get lowest possible latency:
-There are two types of latencies in the library:
+There are two types of latencies:
 
 ### Network latency
-If you want lowest possible network latency, be sure that both Android device and RTSP camera are connected to the same network by the Ethernet cable (not WiFi).
+If you want the lowest possible network latency, be sure that both Android device and RTSP camera are connected to the same network by the Ethernet cable (not WiFi).
+
+Another option to try is to decrease stream bitrate on RTSP camera. Less frame size leads to less time needed for frame transfer.
 
 ### Video decoder latency
 Video decoder latency can vary significantly on different Android devices and on different RTSP camera streams.
