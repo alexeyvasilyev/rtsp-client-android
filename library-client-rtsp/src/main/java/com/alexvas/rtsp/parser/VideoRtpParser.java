@@ -58,7 +58,7 @@ public class VideoRtpParser {
                     // NAL Unit middle packet
                     case 0x00 -> {
                         _fragmentedPackets++;
-                        if (_fragmentedPackets > _fragmentedBuffer.length) {
+                        if (_fragmentedPackets >= _fragmentedBuffer.length) {
                             Log.e(TAG, "Too many middle packets. No NAL FU_A end packet received. Skipped RTP packet.");
                             _fragmentedBuffer[0] = null;
                         } else {
