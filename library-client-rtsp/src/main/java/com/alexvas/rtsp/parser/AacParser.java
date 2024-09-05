@@ -1,5 +1,6 @@
 package com.alexvas.rtsp.parser;
 
+import android.annotation.SuppressLint;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -15,6 +16,7 @@ import androidx.media3.common.util.ParsableByteArray;
 //         +---------+-----------+-----------+---------------+
 //
 //                   <----------RTP Packet Payload----------->
+@SuppressLint("UnsafeOptInUsageError")
 public class AacParser {
 
     private static final String TAG = AacParser.class.getSimpleName();

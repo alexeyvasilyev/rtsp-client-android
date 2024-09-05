@@ -1,5 +1,6 @@
 package com.alexvas.utils
 
+import android.annotation.SuppressLint
 import android.util.Log
 import android.util.Range
 import androidx.annotation.OptIn
@@ -8,6 +9,7 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import java.lang.Exception
 
+@SuppressLint("UnsafeOptInUsageError")
 object MediaCodecUtils {
 
     // key - codecs mime type
