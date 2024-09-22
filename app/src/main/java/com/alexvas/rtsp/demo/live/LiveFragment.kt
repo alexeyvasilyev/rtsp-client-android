@@ -15,13 +15,11 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.alexvas.rtsp.codec.VideoDecodeThread
 import com.alexvas.rtsp.demo.databinding.FragmentLiveBinding
-import com.alexvas.rtsp.widget.RtspSurfaceView
+import com.alexvas.rtsp.widget.RtspImageView
+import com.alexvas.rtsp.widget.RtspStatusListener
 import java.util.Timer
 import java.util.TimerTask
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.math.absoluteValue
-
 
 @SuppressLint("LogNotTimber")
 class LiveFragment : Fragment() {
@@ -29,12 +27,12 @@ class LiveFragment : Fragment() {
     private lateinit var binding: FragmentLiveBinding
     private lateinit var liveViewModel: LiveViewModel
 
-    private val rtspStatusListener = object: RtspSurfaceView.RtspStatusListener {
+    private val rtspStatusSurfaceListener = object: RtspStatusListener {
         override fun onRtspStatusConnecting() {
             binding.apply {
-                tvStatus.text = "RTSP connecting"
-                pbLoading.visibility = View.VISIBLE
-                vShutter.visibility = View.VISIBLE
+                tvStatusSurface.text = "RTSP connecting"
+                pbLoadingSurface.visibility = View.VISIBLE
+                vShutterSurface.visibility = View.VISIBLE
                 etRtspRequest.isEnabled = false
                 etRtspUsername.isEnabled = false
                 etRtspPassword.isEnabled = false
@@ -47,26 +45,26 @@ class LiveFragment : Fragment() {
 
         override fun onRtspStatusConnected() {
             binding.apply {
-                tvStatus.text = "RTSP connected"
-                bnStartStop.text = "Stop RTSP"
-                pbLoading.visibility = View.GONE
+                tvStatusSurface.text = "RTSP connected"
+                bnStartStopSurface.text = "Stop RTSP"
+                pbLoadingSurface.visibility = View.GONE
             }
             setKeepScreenOn(true)
         }
 
         override fun onRtspStatusDisconnecting() {
             binding.apply {
-                tvStatus.text = "RTSP disconnecting"
+                tvStatusSurface.text = "RTSP disconnecting"
             }
         }
 
         override fun onRtspStatusDisconnected() {
             binding.apply {
-                tvStatus.text = "RTSP disconnected"
-                bnStartStop.text = "Start RTSP"
-                pbLoading.visibility = View.GONE
-                vShutter.visibility = View.VISIBLE
-                bnSnapshot.isEnabled = false
+                tvStatusSurface.text = "RTSP disconnected"
+                bnStartStopSurface.text = "Start RTSP"
+                pbLoadingSurface.visibility = View.GONE
+                vShutterSurface.visibility = View.VISIBLE
+                pbLoadingSurface.isEnabled = false
                 cbVideo.isEnabled = true
                 cbAudio.isEnabled = true
                 cbDebug.isEnabled = true
@@ -81,25 +79,85 @@ class LiveFragment : Fragment() {
         override fun onRtspStatusFailedUnauthorized() {
             if (context == null) return
             binding.apply {
-                tvStatus.text = "RTSP username or password invalid"
-                pbLoading.visibility = View.GONE
+                tvStatusSurface.text = "RTSP username or password invalid"
+                pbLoadingSurface.visibility = View.GONE
             }
-            Toast.makeText(context, binding.tvStatus.text , Toast.LENGTH_LONG).show()
+            Toast.makeText(context, binding.tvStatusSurface.text , Toast.LENGTH_LONG).show()
         }
 
         override fun onRtspStatusFailed(message: String?) {
             if (context == null) return
             binding.apply {
-                tvStatus.text = "Error: $message"
-                Toast.makeText(context, tvStatus.text, Toast.LENGTH_LONG).show()
-                pbLoading.visibility = View.GONE
+                tvStatusSurface.text = "Error: $message"
+                Toast.makeText(context, tvStatusSurface.text, Toast.LENGTH_LONG).show()
+                pbLoadingSurface.visibility = View.GONE
             }
         }
 
         override fun onRtspFirstFrameRendered() {
             binding.apply {
-                vShutter.visibility = View.GONE
-                bnSnapshot.isEnabled = true
+                vShutterSurface.visibility = View.GONE
+                bnSnapshotSurface.isEnabled = true
+            }
+        }
+    }
+
+    private val rtspStatusImageListener = object: RtspStatusListener {
+        override fun onRtspStatusConnecting() {
+            binding.apply {
+                tvStatusImage.text = "RTSP connecting"
+                pbLoadingImage.visibility = View.VISIBLE
+                vShutterImage.visibility = View.VISIBLE
+            }
+        }
+
+        override fun onRtspStatusConnected() {
+            binding.apply {
+                tvStatusImage.text = "RTSP connected"
+                bnStartStopImage.text = "Stop RTSP"
+                pbLoadingImage.visibility = View.GONE
+            }
+            setKeepScreenOn(true)
+        }
+
+        override fun onRtspStatusDisconnecting() {
+            binding.apply {
+                tvStatusImage.text = "RTSP disconnecting"
+            }
+        }
+
+        override fun onRtspStatusDisconnected() {
+            binding.apply {
+                tvStatusImage.text = "RTSP disconnected"
+                bnStartStopImage.text = "Start RTSP"
+                pbLoadingImage.visibility = View.GONE
+                vShutterImage.visibility = View.VISIBLE
+                pbLoadingImage.isEnabled = false
+            }
+            setKeepScreenOn(false)
+        }
+
+        override fun onRtspStatusFailedUnauthorized() {
+            if (context == null) return
+            binding.apply {
+                tvStatusImage.text = "RTSP username or password invalid"
+                pbLoadingImage.visibility = View.GONE
+            }
+            Toast.makeText(context, binding.tvStatusImage.text , Toast.LENGTH_LONG).show()
+        }
+
+        override fun onRtspStatusFailed(message: String?) {
+            if (context == null) return
+            binding.apply {
+                tvStatusImage.text = "Error: $message"
+                Toast.makeText(context, tvStatusImage.text, Toast.LENGTH_LONG).show()
+                pbLoadingImage.visibility = View.GONE
+            }
+        }
+
+        override fun onRtspFirstFrameRendered() {
+            binding.apply {
+                vShutterImage.visibility = View.GONE
             }
         }
     }
@@ -119,7 +177,7 @@ class LiveFragment : Fragment() {
             }
         }
         synchronized (lock) {
-            PixelCopy.request(binding.svVideo.holder.surface, surfaceBitmap, listener, sHandler)
+            PixelCopy.request(binding.svVideoSurface.holder.surface, surfaceBitmap, listener, sHandler)
             lock.wait()
         }
         thread.quitSafely()
@@ -129,12 +187,13 @@ class LiveFragment : Fragment() {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         if (DEBUG) Log.v(TAG, "onCreateView()")
 
-        liveViewModel = ViewModelProvider(this).get(LiveViewModel::class.java)
+        liveViewModel = ViewModelProvider(this)[LiveViewModel::class.java]
         binding = FragmentLiveBinding.inflate(inflater, container, false)
 
         binding.bnVideoDecoderGroup.check(binding.bnVideoDecoderHardware.id)
 
-        binding.svVideo.setStatusListener(rtspStatusListener)
+        binding.svVideoSurface.setStatusListener(rtspStatusSurfaceListener)
+        binding.ivVideoImage.setStatusListener(rtspStatusImageListener)
         binding.etRtspRequest.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
             }
@@ -186,38 +245,44 @@ class LiveFragment : Fragment() {
         }
 
         binding.bnRotate0.setOnClickListener {
-            binding.svVideo.videoRotation = 0
+            binding.svVideoSurface.videoRotation = 0
+            binding.ivVideoImage.videoRotation = 0
         }
 
         binding.bnRotate90.setOnClickListener {
-            binding.svVideo.videoRotation = 90
+            binding.svVideoSurface.videoRotation = 90
+            binding.ivVideoImage.videoRotation = 90
         }
 
         binding.bnRotate180.setOnClickListener {
-            binding.svVideo.videoRotation = 180
+            binding.svVideoSurface.videoRotation = 180
+            binding.ivVideoImage.videoRotation = 180
         }
 
         binding.bnRotate270.setOnClickListener {
-            binding.svVideo.videoRotation = 270
+            binding.svVideoSurface.videoRotation = 270
+            binding.ivVideoImage.videoRotation = 270
         }
 
         binding.bnRotate0.performClick()
 
         binding.bnVideoDecoderHardware.setOnClickListener {
-            binding.svVideo.videoDecoderType = VideoDecodeThread.DecoderType.HARDWARE
+            binding.svVideoSurface.videoDecoderType = VideoDecodeThread.DecoderType.HARDWARE
+            binding.ivVideoImage.videoDecoderType = VideoDecodeThread.DecoderType.HARDWARE
         }
 
         binding.bnVideoDecoderSoftware.setOnClickListener {
-            binding.svVideo.videoDecoderType = VideoDecodeThread.DecoderType.SOFTWARE
+            binding.svVideoSurface.videoDecoderType = VideoDecodeThread.DecoderType.SOFTWARE
+            binding.ivVideoImage.videoDecoderType = VideoDecodeThread.DecoderType.SOFTWARE
         }
 
-        binding.bnStartStop.setOnClickListener {
-            if (binding.svVideo.isStarted()) {
-                binding.svVideo.stop()
+        binding.bnStartStopSurface.setOnClickListener {
+            if (binding.svVideoSurface.isStarted()) {
+                binding.svVideoSurface.stop()
                 stopStatistics()
             } else {
                 val uri = Uri.parse(liveViewModel.rtspRequest.value)
-                binding.svVideo.apply {
+                binding.svVideoSurface.apply {
                     init(uri, liveViewModel.rtspUsername.value, liveViewModel.rtspPassword.value, "rtsp-client-android")
                     debug = binding.cbDebug.isChecked
                     start(binding.cbVideo.isChecked, binding.cbAudio.isChecked)
@@ -226,7 +291,27 @@ class LiveFragment : Fragment() {
             }
         }
 
-        binding.bnSnapshot.setOnClickListener {
+        binding.bnStartStopImage.setOnClickListener {
+            if (binding.ivVideoImage.isStarted()) {
+                binding.ivVideoImage.stop()
+                stopStatistics()
+            } else {
+                val uri = Uri.parse(liveViewModel.rtspRequest.value)
+                binding.ivVideoImage.apply {
+                    init(uri, liveViewModel.rtspUsername.value, liveViewModel.rtspPassword.value, "rtsp-client-android")
+                    debug = binding.cbDebug.isChecked
+                    onRtspImageBitmapListener = object : RtspImageView.RtspImageBitmapListener {
+                        override fun onRtspImageBitmapObtained(bitmap: Bitmap) {
+                            // TODO: You can send bitmap for processing
+                        }
+                    }
+                    start(binding.cbVideo.isChecked, binding.cbAudio.isChecked)
+                }
+                startStatistics()
+            }
+        }
+
+        binding.pbLoadingSurface.setOnClickListener {
             val bitmap = getSnapshot()
             // TODO Save snapshot to DCIM folder
             if (bitmap != null) {
@@ -245,13 +330,13 @@ class LiveFragment : Fragment() {
     }
 
     override fun onPause() {
-        val started = binding.svVideo.isStarted()
+        val started = binding.svVideoSurface.isStarted()
         if (DEBUG) Log.v(TAG, "onPause(), started:$started")
         super.onPause()
         liveViewModel.saveParams(requireContext())
 
         if (started) {
-            binding.svVideo.stop()
+            binding.svVideoSurface.stop()
             stopStatistics()
         }
     }
@@ -264,7 +349,7 @@ class LiveFragment : Fragment() {
         if (statisticsTimer == null) {
             val task: TimerTask = object : TimerTask() {
                 override fun run() {
-                    val statistics = binding.svVideo.statistics
+                    val statistics = binding.svVideoSurface.statistics
                     val text =
                         "Video decoder: ${statistics.videoDecoderType.toString().lowercase()} ${if (statistics.videoDecoderName.isNullOrEmpty()) "" else "(${statistics.videoDecoderName})"}" +
                         "\nVideo decoder latency: ${statistics.videoDecoderLatencyMsec} ms"

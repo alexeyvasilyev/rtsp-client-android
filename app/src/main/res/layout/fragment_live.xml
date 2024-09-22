@@ -91,13 +91,21 @@
 
         <Button
             android:layout_marginTop="10dp"
-            android:id="@+id/bnStartStop"
+            android:id="@+id/bnStartStopSurface"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:layout_marginBottom="10dp"
-            android:text="Start RTSP" />
+            android:text="Start" />
 
+
+        <!-- RtspSurfaceView -->
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:paddingBottom="5dp"
+            android:text="RtspSurfaceView:"/>
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="300dp"
@@ -105,19 +113,20 @@
             <com.alexvas.rtsp.widget.RtspSurfaceView
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:id="@+id/svVideo" />
+                android:id="@+id/svVideoSurface" />
             <View
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:background="@android:color/black"
-                android:id="@+id/vShutter" />
+                android:id="@+id/vShutterSurface" />
             <ProgressBar
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:visibility="gone"
-                android:id="@+id/pbLoading"/>
+                android:id="@+id/pbLoadingSurface"/>
         </FrameLayout>
+
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -129,14 +138,66 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 style="@style/Widget.Material3.Button.TextButton.Icon"
-                android:id="@+id/bnSnapshot"
+                android:id="@+id/bnSnapshotSurface"
                 android:enabled="false"
                 android:text="Photo"
                 app:icon="@drawable/ic_camera_black_24dp"/>
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:id="@+id/tvStatus"
+                android:id="@+id/tvStatusSurface"
+                android:gravity="end"/>
+        </LinearLayout>
+
+
+        <!-- RtspImageView -->
+
+        <Button
+            android:layout_marginTop="10dp"
+            android:id="@+id/bnStartStopImage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginBottom="10dp"
+            android:text="Start" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:paddingBottom="5dp"
+            android:text="RtspImageView:"/>
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="300dp"
+            android:animateLayoutChanges="true">
+            <com.alexvas.rtsp.widget.RtspImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitXY"
+                android:id="@+id/ivVideoImage" />
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@android:color/black"
+                android:id="@+id/vShutterImage" />
+            <ProgressBar
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:visibility="gone"
+                android:id="@+id/pbLoadingImage"/>
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="5dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:id="@+id/tvStatusImage"
                 android:gravity="end"/>
         </LinearLayout>
 

@@ -9,7 +9,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Process
 import android.util.Log
-import android.view.Surface
 import com.alexvas.utils.MediaCodecUtils
 import com.alexvas.utils.capabilitiesToString
 import androidx.media3.common.util.Util
@@ -17,20 +16,20 @@ import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
-class VideoDecodeThread (
-        private val surface: Surface,
-        private val mimeType: String,
-        private val width: Int,
-        private val height: Int,
-        private val rotation: Int, // 0, 90, 180, 270
-        private val videoFrameQueue: VideoFrameQueue,
-        private val videoDecoderListener: VideoDecoderListener,
-        private var videoDecoderType: DecoderType = DecoderType.HARDWARE
+abstract class VideoDecodeThread (
+    protected val mimeType: String,
+    protected val width: Int,
+    protected val height: Int,
+    protected val rotation: Int, // 0, 90, 180, 270
+    protected val videoFrameQueue: VideoFrameQueue,
+    protected val videoDecoderListener: VideoDecoderListener,
+    protected var videoDecoderType: DecoderType
 ) : Thread() {
 
-    private val uiHandler = Handler(Looper.getMainLooper())
-    private var exitFlag = AtomicBoolean(false)
-    private var firstFrameRendered = false
+    enum class DecoderType {
+        HARDWARE,
+        SOFTWARE // fallback
+    }
 
     interface VideoDecoderListener {
         /** Video decoder successfully started */
@@ -44,6 +43,10 @@ class VideoDecodeThread (
         /** First video frame rendered */
         fun onVideoDecoderFirstFrameRendered() {}
     }
+
+    protected val uiHandler = Handler(Looper.getMainLooper())
+    protected var exitFlag = AtomicBoolean(false)
+    protected var firstFrameRendered = false
 
     /** Decoder latency used for statistics */
     @Volatile private var decoderLatency = -1
@@ -138,7 +141,7 @@ class VideoDecodeThread (
         val safeWidthHeight = getDecoderSafeWidthHeight(decoder)
         val format = MediaFormat.createVideoFormat(mimeType, safeWidthHeight.first, safeWidthHeight.second)
         if (DEBUG)
-            Log.d(TAG, "Configuring surface ${safeWidthHeight.first}x${safeWidthHeight.second} w/ '$mimeType', $surface valid=${surface.isValid}")
+            Log.d(TAG, "Configuring surface ${safeWidthHeight.first}x${safeWidthHeight.second} w/ '$mimeType'")
         else
             Log.i(TAG, "Configuring surface ${safeWidthHeight.first}x${safeWidthHeight.second} w/ '$mimeType'")
         format.setInteger(MediaFormat.KEY_ROTATION, rotation)
@@ -150,10 +153,14 @@ class VideoDecodeThread (
         return format
     }
 
-    enum class DecoderType {
-        HARDWARE,
-        SOFTWARE // fallback
-    }
+    /** Decoder created */
+    abstract fun decoderCreated(mediaCodec: MediaCodec, mediaFormat: MediaFormat)
+
+    /** Frame processed */
+    abstract fun releaseOutputBuffer(mediaCodec: MediaCodec, outIndex: Int, render: Boolean)
+
+    /** Decoder stopped and released */
+    abstract fun decoderDestroyed(mediaCodec: MediaCodec)
 
     private fun createVideoDecoderAndStart(decoderType: DecoderType): MediaCodec {
         if (DEBUG) Log.v(TAG, "createVideoDecoderAndStart(decoderType=$decoderType)")
@@ -198,7 +205,7 @@ class VideoDecodeThread (
         }
         decoder.setOnFrameRenderedListener(frameRenderedListener, null)
         val format = getDecoderMediaFormat(decoder)
-        decoder.configure(format, surface, null, 0)
+        decoderCreated(decoder, format)
         decoder.start()
 
         val capabilities = decoder.codecInfo.getCapabilitiesForType(mimeType)
@@ -233,8 +240,8 @@ class VideoDecodeThread (
             Log.e(TAG, "Failed to release decoder", e3)
         }
         videoFrameQueue.clear()
+        decoderDestroyed(decoder)
     }
-
 
     override fun run() {
         if (DEBUG) Log.d(TAG, "$name started")
@@ -261,7 +268,6 @@ class VideoDecodeThread (
                     return
                 }
             }
-
             val bufferInfo = MediaCodec.BufferInfo()
 
             try {
@@ -364,9 +370,9 @@ class VideoDecodeThread (
                                             }
                                         }
 
-                                        val render = bufferInfo.size != 0 && !exitFlag.get() && surface.isValid
+                                        val render = bufferInfo.size != 0 && !exitFlag.get()
                                         if (DEBUG) Log.i(TAG, "\tFrame decoded [outIndex=$outIndex, render=$render]")
-                                        decoder.releaseOutputBuffer(outIndex, render)
+                                        releaseOutputBuffer(decoder, outIndex, render)
                                         if (!firstFrameDecoded && render) {
                                             firstFrameDecoded = true
                                         }
@@ -402,7 +408,7 @@ class VideoDecodeThread (
                             try {
                                 decoder.stop()
                                 val format = getDecoderMediaFormat(decoder)
-                                decoder.configure(format, surface, null, 0)
+                                decoderCreated(decoder, format)
                                 decoder.start()
                                 Log.i(TAG, "Video decoder recovering succeeded")
                             } catch (e2: Throwable) {
@@ -452,7 +458,7 @@ class VideoDecodeThread (
     }
 
     companion object {
-        private val TAG: String = VideoDecodeThread::class.java.simpleName
+        internal val TAG: String = VideoDecodeThread::class.java.simpleName
         private const val DEBUG = false
 
         private val DEQUEUE_INPUT_TIMEOUT_US = TimeUnit.MILLISECONDS.toMicros(500)
@@ -460,4 +466,3 @@ class VideoDecodeThread (
     }
 
 }
-

@@ -41,4 +41,5 @@ android {
 dependencies {
     implementation "androidx.annotation:annotation:$androidXAnnotationVersion"
     implementation "androidx.media3:media3-exoplayer:$androidXMedia3Version"
+    implementation "androidx.camera:camera-core:$androidXCameraCoreVersion"
 }
