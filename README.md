@@ -38,12 +38,16 @@ dependencies {
 ```
 
 ## How to use:
-Easiest way is just to use `RtspSurfaceView` class for showing video stream in UI.
+Easiest way is just to use `RtspSurfaceView` or `RtspImageView` classes for showing video stream in UI.
 ```xml
 <com.alexvas.rtsp.widget.RtspSurfaceView
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:id="@+id/svVideo" />
+<com.alexvas.rtsp.widget.RtspImageView
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:id="@+id/ivVideo" />
 ```
 
 Then in code use:
