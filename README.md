@@ -1,5 +1,5 @@
 # rtsp-client-android
-<b>Lightweight RTSP client library for Android</b> with almost zero lag video decoding (achieved 20 msec video decoding latency on some RTSP streams). Designed for lag criticial applications (e.g. video surveillance from drones).
+<b>Lightweight RTSP client library for Android</b> with almost zero lag video decoding (achieved 20 msec video decoding latency on some RTSP streams). Designed for lag criticial applications (e.g. video surveillance from drones, car rear view cameras, etc.).
 
 Unlike [AndroidX Media ExoPlayer](https://github.com/androidx/media) which also supports RTSP, this library does not make any video buffering. Video frames are shown immidiately when they arrive.
 
@@ -38,12 +38,18 @@ dependencies {
 ```
 
 ## How to use:
-Easiest way is just to use `RtspSurfaceView` or `RtspImageView` classes for showing video stream in UI.
+Easiest way is just to use `RtspSurfaceView` (recommended) or `RtspImageView` classes for showing video stream in UI.
+
+Use [RtspSurfaceView](https://github.com/alexeyvasilyev/rtsp-client-android/blob/master/library-client-rtsp/src/main/java/com/alexvas/rtsp/widget/RtspSurfaceView.kt) if you need best performance and less battery usage. To get bitmap from SurfaceView use [PixelCopy.request](https://developer.android.com/reference/android/view/PixelCopy) (on Pixel 8 Pro with 1440p @ 20 fps video stream, you can get 12 fps only via PixelCopy)
+
+Use [RtspImageView](https://github.com/alexeyvasilyev/rtsp-client-android/blob/master/library-client-rtsp/src/main/java/com/alexvas/rtsp/widget/RtspImageView.kt) if you need better performance than PixelCopy for getting bitmaps for further processing (e.g. for AI).
+
 ```xml
 <com.alexvas.rtsp.widget.RtspSurfaceView
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:id="@+id/svVideo" />
+
 <com.alexvas.rtsp.widget.RtspImageView
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -61,7 +67,7 @@ svVideo.start(requestVideo = true, requestAudio = true)
 svVideo.stop()
 ```
 
-You can still use library without any decoding (just for obtaining raw frames), e.g. for writing video stream into MP4 via muxer.
+You can still use library without any decoding (just for obtaining raw frames from RTSP source), e.g. for writing video stream into MP4 via muxer.
 
 ```kotlin
 val rtspClientListener = object: RtspClient.RtspClientListener {
