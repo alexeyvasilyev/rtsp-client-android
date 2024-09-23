@@ -5,7 +5,7 @@ Unlike [AndroidX Media ExoPlayer](https://github.com/androidx/media) which also 
 
 [![Release](https://jitpack.io/v/alexeyvasilyev/rtsp-client-android.svg)](https://jitpack.io/#alexeyvasilyev/rtsp-client-android)
 
-![Screenshot](docs/images/rtsp-demo-app.png?raw=true "Screenshot")
+![Screenshot](docs/images/rtsp-demo-app.webp?raw=true "Screenshot")
 
 ## Features:
 - Android min API 24.
