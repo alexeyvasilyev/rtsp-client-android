@@ -607,6 +607,7 @@ public class RtspClient {
         byte[] nalUnitSps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.sps : null);
         byte[] nalUnitPps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.pps : null);
         byte[] nalUnitSei = EMPTY_ARRAY;
+        byte[] nalUnitAud = EMPTY_ARRAY;
         int videoSeqNum = 0;
 
         long keepAliveSent = System.currentTimeMillis();
@@ -635,7 +636,7 @@ public class RtspClient {
                 if (videoSeqNum > header.sequenceNumber)
                     Log.w(TAG, "Invalid video seq num " + videoSeqNum + "/" + header.sequenceNumber);
                 videoSeqNum = header.sequenceNumber;
-                byte[] nalUnit = videoParser.processRtpPacketAndGetNalUnit(data, header.payloadSize);
+                byte[] nalUnit = videoParser.processRtpPacketAndGetNalUnit(data, header.payloadSize, header.marker == 1);
                 if (nalUnit != null) {
                     byte type = VideoCodecUtils.INSTANCE.getH264NalUnitType(nalUnit, 0, nalUnit.length);
 //                  Log.i(TAG, "NAL u: " + VideoCodecUtils.getH264NalUnitTypeString(type));
@@ -644,14 +645,18 @@ public class RtspClient {
                             nalUnitSps = nalUnit;
                             // Looks like there is NAL_IDR_SLICE as well. Send it now.
                             if (nalUnit.length > 100)
-                                listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, (long)(header.timeStamp * 11.111111));
+                                listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, header.getTimestampMsec());
                             break;
 
                         case VideoCodecUtils.NAL_PPS:
                             nalUnitPps = nalUnit;
                             // Looks like there is NAL_IDR_SLICE as well. Send it now.
                             if (nalUnit.length > 100)
-                                listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, (long)(header.timeStamp * 11.111111));
+                                listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, header.getTimestampMsec());
+                            break;
+
+                        case VideoCodecUtils.NAL_AUD:
+                            nalUnitAud = nalUnit;
                             break;
 
                         case VideoCodecUtils.NAL_SEI:
@@ -661,29 +666,41 @@ public class RtspClient {
                         case VideoCodecUtils.NAL_IDR_SLICE:
                             // Combine IDR with SPS/PPS
                             if (nalUnitSps != null && nalUnitPps != null) {
-                                byte[] nalUnitSppPpsIdr = new byte[nalUnitSps.length + nalUnitPps.length + nalUnitSei.length + nalUnit.length];
-                                System.arraycopy(nalUnitSps, 0, nalUnitSppPpsIdr, 0, nalUnitSps.length);
-                                System.arraycopy(nalUnitPps, 0, nalUnitSppPpsIdr, nalUnitSps.length, nalUnitPps.length);
-                                System.arraycopy(nalUnitSei, 0, nalUnitSppPpsIdr, nalUnitSps.length + nalUnitPps.length, nalUnitSei.length);
-                                System.arraycopy(nalUnit, 0, nalUnitSppPpsIdr,  nalUnitSps.length + nalUnitPps.length + nalUnitSei.length, nalUnit.length);
-                                listener.onRtspVideoNalUnitReceived(nalUnitSppPpsIdr, 0, nalUnitSppPpsIdr.length, (long)(header.timeStamp * 11.111111));
+                                byte[] nalUnitSpsPpsIdr = new byte[nalUnitAud.length + nalUnitSps.length + nalUnitPps.length + nalUnitSei.length + nalUnit.length];
+                                int offset = 0;
+                                System.arraycopy(nalUnitSps, 0, nalUnitSpsPpsIdr, offset, nalUnitSps.length);
+                                offset += nalUnitSps.length;
+                                System.arraycopy(nalUnitPps, 0, nalUnitSpsPpsIdr, offset, nalUnitPps.length);
+                                offset += nalUnitPps.length;
+                                System.arraycopy(nalUnitAud, 0, nalUnitSpsPpsIdr, offset, nalUnitAud.length);
+                                offset += nalUnitAud.length;
+                                System.arraycopy(nalUnitSei, 0, nalUnitSpsPpsIdr, offset, nalUnitSei.length);
+                                offset += nalUnitSei.length;
+                                System.arraycopy(nalUnit, 0, nalUnitSpsPpsIdr, offset, nalUnit.length);
+                                listener.onRtspVideoNalUnitReceived(nalUnitSpsPpsIdr, 0, nalUnitSpsPpsIdr.length, header.getTimestampMsec());
 //                              listener.onRtspVideoNalUnitReceived(nalUnitSppPpsIdr, 0, nalUnitSppPpsIdr.length, System.currentTimeMillis());
                                 // Send it only once
                                 nalUnitSps = null;
                                 nalUnitPps = null;
                                 nalUnitSei = EMPTY_ARRAY;
+                                nalUnitAud = EMPTY_ARRAY;
                                 break;
                             }
 
                         default:
-                            if (nalUnitSei.length == 0) {
-                                listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, (long)(header.timeStamp * 11.111111));
+                            if (nalUnitSei.length == 0 && nalUnitAud.length == 0) {
+                                listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, header.getTimestampMsec());
                             } else {
-                                byte[] nalUnitSeiSlice = new byte[nalUnitSei.length + nalUnit.length];
-                                System.arraycopy(nalUnitSei, 0, nalUnitSeiSlice, 0, nalUnitSei.length);
-                                System.arraycopy(nalUnit, 0, nalUnitSeiSlice, nalUnitSei.length, nalUnit.length);
-                                listener.onRtspVideoNalUnitReceived(nalUnitSeiSlice, 0, nalUnitSeiSlice.length, (long)(header.timeStamp * 11.111111));
+                                byte[] nalUnitAudSeiSlice = new byte[nalUnitAud.length + nalUnitSei.length + nalUnit.length];
+                                int offset = 0;
+                                System.arraycopy(nalUnitSei, 0, nalUnitAudSeiSlice, offset, nalUnitAud.length);
+                                offset += nalUnitAud.length;
+                                System.arraycopy(nalUnitSei, 0, nalUnitAudSeiSlice, offset, nalUnitSei.length);
+                                offset += nalUnitSei.length;
+                                System.arraycopy(nalUnit, 0, nalUnitAudSeiSlice, offset, nalUnit.length);
+                                listener.onRtspVideoNalUnitReceived(nalUnitAudSeiSlice, 0, nalUnitAudSeiSlice.length, header.getTimestampMsec());
                                 nalUnitSei = EMPTY_ARRAY;
+                                nalUnitAud = EMPTY_ARRAY;
                             }
                     }
                 }
@@ -693,7 +710,7 @@ public class RtspClient {
                 if (audioParser != null) {
                     byte[] sample = audioParser.processRtpPacketAndGetSample(data, header.payloadSize);
                     if (sample != null)
-                        listener.onRtspAudioSampleReceived(sample, 0, sample.length, (long) (header.timeStamp * 11.111111));
+                        listener.onRtspAudioSampleReceived(sample, 0, sample.length, header.getTimestampMsec());
                 }
 
             // Unknown

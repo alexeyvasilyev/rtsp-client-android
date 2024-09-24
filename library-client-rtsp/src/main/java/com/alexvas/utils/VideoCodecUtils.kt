@@ -219,8 +219,8 @@ object VideoCodecUtils {
                 offset = nextNalUnitStartIndex
 
                 // Check that we are not too long here
-                if (System.currentTimeMillis() - timestamp > 100) {
-                    Log.w(TAG, "Cannot process data within 100 msec in $length bytes")
+                if (System.currentTimeMillis() - timestamp > 200) {
+                    Log.w(TAG, "Cannot process data within 200 msec in $length bytes (NALs found: " + foundNals.size + ")")
                     break
                 }
             } else {
@@ -258,7 +258,7 @@ object VideoCodecUtils {
         val spsStartLength = getNalUnitStartLengthFromArray(src, offset, length, NAL_SPS)
         spsStartLength?.let {
             return NalUnitUtil.parseSpsNalUnitPayload(
-                src, spsStartLength.first, spsStartLength.second)
+                src, spsStartLength.first, spsStartLength.first + spsStartLength.second)
         }
         return null
     }

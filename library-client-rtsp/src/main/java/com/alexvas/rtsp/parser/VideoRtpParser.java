@@ -19,92 +19,112 @@ public class VideoRtpParser {
     private int _fragmentedPackets = 0;
 
     @Nullable
-    public byte[] processRtpPacketAndGetNalUnit(@NonNull byte[] data, int length) {
+    public byte[] processRtpPacketAndGetNalUnit(@NonNull byte[] data, int length, boolean marker) {
         if (DEBUG)
-            Log.v(TAG, "processRtpPacketAndGetNalUnit(length=" + length + ")");
+            Log.v(TAG, "processRtpPacketAndGetNalUnit(length=" + length + ", marker=" + marker + ")");
 
-        int tmpLen;
         byte nalType = (byte) (data[0] & 0x1F);
         int packFlag = data[1] & 0xC0;
         byte[] nalUnit = null;
 
         if (DEBUG)
-            Log.d(TAG, "NAL type: " + VideoCodecUtils.INSTANCE.getH264NalUnitTypeString(nalType) + ", pack flag: " + packFlag);
+            Log.d(TAG, "\t\tNAL type: " + VideoCodecUtils.INSTANCE.getH264NalUnitTypeString(nalType) + ", pack flag: 0x" + Integer.toHexString(packFlag).toLowerCase());
         switch (nalType) {
 
             // Single-time aggregation packet
-            case VideoCodecUtils.NAL_STAP_A, VideoCodecUtils.NAL_STAP_B:
+            case VideoCodecUtils.NAL_STAP_A, VideoCodecUtils.NAL_STAP_B -> {
                 // Not supported
-                break;
+            }
 
             // Multi-time aggregation packet
-            case VideoCodecUtils.NAL_MTAP16, VideoCodecUtils.NAL_MTAP24:
+            case VideoCodecUtils.NAL_MTAP16, VideoCodecUtils.NAL_MTAP24 -> {
                 // Not supported
-                break;
+            }
 
             // Fragmentation unit
             // See https://github.com/FFmpeg/FFmpeg/blob/master/libavformat/rtpdec_h264.c for more info.
-            case VideoCodecUtils.NAL_FU_A:
+            case VideoCodecUtils.NAL_FU_A -> {
                 switch (packFlag) {
                     // NAL Unit start packet
                     case 0x80 -> {
-                        _fragmentedPackets = 0;
-                        _fragmentedBufferLength = length - 1;
-                        _fragmentedBuffer[0] = new byte[_fragmentedBufferLength];
-                        _fragmentedBuffer[0][0] = (byte) ((data[0] & 0xE0) | (data[1] & 0x1F));
-                        System.arraycopy(data, 2, _fragmentedBuffer[0], 1, length - 2);
+                        addStartFragmentedPacket(data, length);
                     }
 
                     // NAL Unit middle packet
                     case 0x00 -> {
-                        _fragmentedPackets++;
-                        if (_fragmentedPackets >= _fragmentedBuffer.length) {
-                            Log.e(TAG, "Too many middle packets. No NAL FU_A end packet received. Skipped RTP packet.");
-                            _fragmentedBuffer[0] = null;
+                        if (marker) {
+                            // Sometimes 0x40 end packet is not arrived. Use marker bit in this case
+                            // to finish fragmented packet.
+                            nalUnit = addEndFragmentedPacketAndCombine(data, length);
                         } else {
-                            _fragmentedBufferLength += length - 2;
-                            _fragmentedBuffer[_fragmentedPackets] = new byte[length - 2];
-                            System.arraycopy(data, 2, _fragmentedBuffer[_fragmentedPackets], 0, length - 2);
+                            addMiddleFragmentedPacket(data, length);
                         }
                     }
 
                     // NAL Unit end packet. Combine all packets.
                     case 0x40 -> {
-                        if (_fragmentedBuffer[0] == null) {
-                            Log.e(TAG, "No NAL FU_A start packet received. Skipped RTP packet.");
-                        } else {
-                            nalUnit = new byte[_fragmentedBufferLength + length + 2];
-                            writeNalPrefix0001(nalUnit);
-                            tmpLen = 4;
-                            // Write start and middle packets
-                            for (int i = 0; i < _fragmentedPackets + 1; ++i) {
-                                System.arraycopy(_fragmentedBuffer[i], 0, nalUnit, tmpLen, _fragmentedBuffer[i].length);
-                                tmpLen += _fragmentedBuffer[i].length;
-                            }
-                            // Write end packet
-                            System.arraycopy(data, 2, nalUnit, tmpLen, length - 2);
-                            clearFragmentedBuffer();
-                            if (DEBUG)
-                                Log.d(TAG, "Fragmented NAL (" + (nalUnit.length) + ")");
-                        }
+                        nalUnit = addEndFragmentedPacketAndCombine(data, length);
                     }
                 }
-                break;
+            }
 
             // Fragmentation unit
-            case VideoCodecUtils.NAL_FU_B:
+            case VideoCodecUtils.NAL_FU_B -> {
                 // Not supported
-                break;
+            }
 
             // Single NAL unit per packet
-            default:
+            default -> {
                 nalUnit = new byte[4 + length];
                 writeNalPrefix0001(nalUnit);
-                System.arraycopy(data,0, nalUnit,4, length);
+                System.arraycopy(data, 0, nalUnit, 4, length);
                 clearFragmentedBuffer();
                 if (DEBUG)
-                    Log.d(TAG,"Single NAL (" + nalUnit.length + ")");
-                break;
+                    Log.d(TAG, "Single NAL (" + nalUnit.length + ")");
+            }
+        }
+        return nalUnit;
+    }
+
+    private void addStartFragmentedPacket(@NonNull byte[] data, int length) {
+        _fragmentedPackets = 0;
+        _fragmentedBufferLength = length - 1;
+        _fragmentedBuffer[0] = new byte[_fragmentedBufferLength];
+        _fragmentedBuffer[0][0] = (byte) ((data[0] & 0xE0) | (data[1] & 0x1F));
+        System.arraycopy(data, 2, _fragmentedBuffer[0], 1, length - 2);
+    }
+
+    private void addMiddleFragmentedPacket(@NonNull byte[] data, int length) {
+        _fragmentedPackets++;
+        if (_fragmentedPackets >= _fragmentedBuffer.length) {
+            Log.e(TAG, "Too many middle packets. No NAL FU_A end packet received. Skipped RTP packet.");
+            _fragmentedBuffer[0] = null;
+        } else {
+            _fragmentedBufferLength += length - 2;
+            _fragmentedBuffer[_fragmentedPackets] = new byte[length - 2];
+            System.arraycopy(data, 2, _fragmentedBuffer[_fragmentedPackets], 0, length - 2);
+        }
+    }
+
+    private byte[] addEndFragmentedPacketAndCombine(@NonNull byte[] data, int length) {
+        byte[] nalUnit = null;
+        int tmpLen;
+        if (_fragmentedBuffer[0] == null) {
+            Log.e(TAG, "No NAL FU_A start packet received. Skipped RTP packet.");
+        } else {
+            nalUnit = new byte[_fragmentedBufferLength + length + 2];
+            writeNalPrefix0001(nalUnit);
+            tmpLen = 4;
+            // Write start and middle packets
+            for (int i = 0; i < _fragmentedPackets + 1; ++i) {
+                System.arraycopy(_fragmentedBuffer[i], 0, nalUnit, tmpLen, _fragmentedBuffer[i].length);
+                tmpLen += _fragmentedBuffer[i].length;
+            }
+            // Write end packet
+            System.arraycopy(data, 2, nalUnit, tmpLen, length - 2);
+            clearFragmentedBuffer();
+            if (DEBUG)
+                Log.d(TAG, "Fragmented NAL (" + (nalUnit.length) + ")");
         }
         return nalUnit;
     }

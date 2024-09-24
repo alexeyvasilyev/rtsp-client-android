@@ -29,6 +29,10 @@ public class RtpParser {
         public long ssrc;
         public int payloadSize;
 
+        public long getTimestampMsec() {
+            return (long)(timeStamp * 11.111111);
+        }
+
         // If RTP header found, return 4 bytes of the header
         private static boolean searchForNextRtpHeader(@NonNull InputStream inputStream, @NonNull byte[] header /*out*/) throws IOException {
             if (header.length < 4)

@@ -173,6 +173,8 @@ class RtspProcessor(
             }
         }
 
+        private var framesPerGop = 0
+
         override fun onRtspVideoNalUnitReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
             if (DEBUG) Log.v(TAG, "onRtspVideoNalUnitReceived(length=$length)")
 
@@ -196,9 +198,14 @@ class RtspProcessor(
                         // Check only first 100 bytes maximum. That's enough for finding SPS NAL unit.
                         Integer.min(length, 100)
                     )
-                    Log.d(
-                        TAG, "\tKey frame received ($length} bytes, ts=${timestamp}," +
-                            " profile=${sps?.profileIdc}, level=${sps?.levelIdc})")
+                    Log.d(TAG,
+                        "\tKey frame received ($length bytes, ts=$timestamp," +
+                        " ${sps?.width}x${sps?.height}," +
+                        " GoP=$framesPerGop," +
+                        " profile=${sps?.profileIdc}, level=${sps?.levelIdc})")
+                    framesPerGop = 0
+                } else {
+                    framesPerGop++
                 }
             }
             videoFrameQueue.push(
