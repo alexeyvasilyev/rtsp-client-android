@@ -366,9 +366,9 @@ class RtspProcessor(
 
     private fun onRtspClientStopped() {
         if (DEBUG) Log.v(TAG, "onRtspClientStopped()")
-        uiHandler.post { statusListener?.onRtspStatusDisconnected() }
         stopDecoders()
         rtspThread = null
+        uiHandler.post { statusListener?.onRtspStatusDisconnected() }
     }
 
     fun init(uri: Uri, username: String?, password: String?, userAgent: String? = null) {
