@@ -641,7 +641,7 @@ public class RtspClient {
                 videoSeqNum = header.sequenceNumber;
                 byte[] nalUnit = videoParser.processRtpPacketAndGetNalUnit(data, header.payloadSize, header.marker == 1);
                 if (nalUnit != null) {
-                    boolean isH265 = true;
+                    boolean isH265 = sdpInfo.videoTrack.videoCodec == VIDEO_CODEC_H265;
                     byte type = VideoCodecUtils.INSTANCE.getNalUnitType(nalUnit, 0, nalUnit.length, isH265);
 //                  Log.i(TAG, "NAL u: " + VideoCodecUtils.INSTANCE.getH265NalUnitTypeString(type));
                     switch (type) {
@@ -697,7 +697,7 @@ public class RtspClient {
                             } else {
                                 byte[] nalUnitAudSeiSlice = new byte[nalUnitAud.length + nalUnitSei.length + nalUnit.length];
                                 int offset = 0;
-                                System.arraycopy(nalUnitSei, 0, nalUnitAudSeiSlice, offset, nalUnitAud.length);
+                                System.arraycopy(nalUnitAud, 0, nalUnitAudSeiSlice, offset, nalUnitAud.length);
                                 offset += nalUnitAud.length;
                                 System.arraycopy(nalUnitSei, 0, nalUnitAudSeiSlice, offset, nalUnitSei.length);
                                 offset += nalUnitSei.length;
