@@ -68,7 +68,7 @@ object VideoCodecUtils {
      * Search for 00 00 01 or 00 00 00 01 in byte stream.
      * @return offset to the start of NAL unit if found, otherwise -1
      */
-    fun searchForH264NalUnitStart(
+    fun searchForNalUnitStart(
         data: ByteArray,
         offset: Int,
         length: Int,
@@ -95,7 +95,7 @@ object VideoCodecUtils {
         val nalUnitPrefixSize = AtomicInteger(-1)
         val timestamp = System.currentTimeMillis()
         while (true) {
-            val nalUnitIndex = searchForH264NalUnitStart(data, off, length, nalUnitPrefixSize)
+            val nalUnitIndex = searchForNalUnitStart(data, off, length, nalUnitPrefixSize)
             if (nalUnitIndex >= 0) {
                 val nalUnitOffset = nalUnitIndex + nalUnitPrefixSize.get()
                 val nalUnitTypeOctet = data[nalUnitOffset]
@@ -116,7 +116,7 @@ object VideoCodecUtils {
         return -1
     }
 
-    fun getH264NalUnitType(data: ByteArray?, offset: Int, length: Int): Byte {
+    fun getNalUnitType(data: ByteArray?, offset: Int, length: Int, isH265: Boolean): Byte {
         if (data == null || length <= NAL_PREFIX1.size) return (-1).toByte()
         var nalUnitTypeOctetOffset = -1
         if (data[offset + NAL_PREFIX2.size - 1] == 1.toByte())
@@ -127,7 +127,10 @@ object VideoCodecUtils {
 
         return if (nalUnitTypeOctetOffset != -1) {
             val nalUnitTypeOctet = data[nalUnitTypeOctetOffset + 1]
-            (nalUnitTypeOctet and 0x1f)
+            if (isH265)
+                ((nalUnitTypeOctet.toInt() shr 1) and 0x3F).toByte()
+            else
+                (nalUnitTypeOctet and 0x1f)
         } else {
             (-1).toByte()
         }
@@ -164,11 +167,12 @@ object VideoCodecUtils {
     data class NalUnit (val type: Byte, val offset: Int, val length: Int)
 
 
-    fun getH264NalUnits(
+    fun getNalUnits(
         data: ByteArray,
         dataOffset: Int,
         length: Int,
-        foundNals: ArrayList<NalUnit>
+        foundNals: ArrayList<NalUnit>,
+        isH265: Boolean
     ): Int {
         foundNals.clear()
         var nalUnits = 0
@@ -180,7 +184,7 @@ object VideoCodecUtils {
         while (!stopped) {
 
             // Search for first NAL unit
-            val nalUnitIndex = searchForH264NalUnitStart(
+            val nalUnitIndex = searchForNalUnitStart(
                 data,
                 offset + nextNalOffset,
                 length - nextNalOffset,
@@ -192,10 +196,13 @@ object VideoCodecUtils {
                 nalUnits++
                 val nalUnitOffset = offset + nextNalOffset + nalUnitPrefixSize.get()
                 val nalUnitTypeOctet = data[nalUnitOffset]
-                val nalUnitType = (nalUnitTypeOctet and 0x1f)
+                val nalUnitType = if (isH265)
+                    ((nalUnitTypeOctet.toInt() shr 1) and 0x3F).toByte()
+                else
+                    (nalUnitTypeOctet and 0x1F)
 
                 // Search for second NAL unit (optional)
-                var nextNalUnitStartIndex = searchForH264NalUnitStart(
+                var nextNalUnitStartIndex = searchForNalUnitStart(
                     data,
                     nalUnitOffset,
                     length - nalUnitOffset,
@@ -232,14 +239,15 @@ object VideoCodecUtils {
 
     private fun getNalUnitStartLengthFromArray(
         src: ByteArray, offset: Int, length: Int,
+        isH265: Boolean,
         nalUnitType: Byte
     ): Pair<Int, Int>? {
         val nalUnitsFound = ArrayList<NalUnit>()
-        if (getH264NalUnits(src, offset, length, nalUnitsFound) > 0) {
+        if (getNalUnits(src, offset, length, nalUnitsFound, isH265) > 0) {
             for (nalUnit in nalUnitsFound) {
                 if (nalUnit.type == nalUnitType) {
                     val prefixSize = AtomicInteger()
-                    val nalUnitIndex = searchForH264NalUnitStart(
+                    val nalUnitIndex = searchForNalUnitStart(
                         src,
                         nalUnit.offset,
                         nalUnit.length,
@@ -254,8 +262,8 @@ object VideoCodecUtils {
     }
 
     @SuppressLint("UnsafeOptInUsageError")
-    fun getSpsNalUnitFromArray(src: ByteArray, offset: Int, length: Int): SpsData? {
-        val spsStartLength = getNalUnitStartLengthFromArray(src, offset, length, NAL_SPS)
+    fun getSpsNalUnitFromArray(src: ByteArray, offset: Int, length: Int, isH265: Boolean): SpsData? {
+        val spsStartLength = getNalUnitStartLengthFromArray(src, offset, length, isH265, NAL_SPS)
         spsStartLength?.let {
             return NalUnitUtil.parseSpsNalUnitPayload(
                 src, spsStartLength.first, spsStartLength.first + spsStartLength.second)
@@ -263,23 +271,28 @@ object VideoCodecUtils {
         return null
     }
 
-    @SuppressLint("UnsafeOptInUsageError")
-    fun getWidthHeightFromArray(src: ByteArray, offset: Int, length: Int): Pair<Int, Int>? {
-        val sps = getSpsNalUnitFromArray(src, offset, length)
-        sps?.let {
-            return Pair(sps.width, sps.height)
-        }
-        return null
-    }
+//    @SuppressLint("UnsafeOptInUsageError")
+//    fun getWidthHeightFromArray(src: ByteArray, offset: Int, length: Int): Pair<Int, Int>? {
+//        val sps = getSpsNalUnitFromArray(src, offset, length)
+//        sps?.let {
+//            return Pair(sps.width, sps.height)
+//        }
+//        return null
+//    }
 
-    fun isAnyH264KeyFrame(data: ByteArray?, offset: Int, length: Int): Boolean {
+
+//    private fun isH265IRAP(nalUnitType: Byte): Boolean {
+//        return nalUnitType in 16..23
+//    }
+
+    fun isAnyKeyFrame(data: ByteArray?, offset: Int, length: Int, isH265: Boolean): Boolean {
         if (data == null || length <= 0) return false
         var currOffset = offset
 
         val nalUnitPrefixSize = AtomicInteger(-1)
         val timestamp = System.currentTimeMillis()
         while (true) {
-            val nalUnitIndex = searchForH264NalUnitStart(
+            val nalUnitIndex = searchForNalUnitStart(
                 data,
                 currOffset,
                 length,
@@ -289,13 +302,18 @@ object VideoCodecUtils {
             if (nalUnitIndex >= 0) {
                 val nalUnitOffset = nalUnitIndex + nalUnitPrefixSize.get()
                 val nalUnitTypeOctet = data[nalUnitOffset]
-                val nalUnitType = (nalUnitTypeOctet.toInt() and 0x1f).toByte()
 
-//              if (DEBUG) Log.d(TAG, "NAL unit type: " + getH264NalUnitTypeString(nalUnitType))
-
-                when (nalUnitType) {
-                    NAL_IDR_SLICE -> return true
-                    NAL_SLICE -> return false
+                if (isH265) {
+                    val nalUnitType = ((nalUnitTypeOctet.toInt() and 0x7E) shr 1).toByte()
+                    // Treat SEI_PREFIX as key frame.
+                    if (nalUnitType == H265_NAL_IDR_W_RADL || nalUnitType == H265_NAL_IDR_N_LP)
+                        return true
+                } else {
+                    val nalUnitType = (nalUnitTypeOctet.toInt() and 0x1f).toByte()
+                    when (nalUnitType) {
+                        NAL_IDR_SLICE -> return true
+                        NAL_SLICE -> return false
+                    }
                 }
                 // Continue searching
                 currOffset = nalUnitOffset
@@ -313,28 +331,6 @@ object VideoCodecUtils {
         return false
     }
 
-    //    @Nullable
-    //    public static Size getImageSizeFromH265SpsNalUnit(@NonNull byte[] data, int offset, int length) {
-    //        int nalUnitTypeIndex = getNalUnitStartCodePrefixSize(data, offset, length);
-    //        if (nalUnitTypeIndex > 0) {
-    //            byte nalUnitTypeOctet = data [offset + nalUnitTypeIndex];
-    //            byte nalUnitType = (byte)((nalUnitTypeOctet & 0x7E) >> 1);
-    //            if (DEBUG)
-    //                Log.d(TAG, "NAL unit type: " + getH264NalUnitTypeString(nalUnitType) + " (" + nalUnitType + ")");
-    //            // SPS NAL unit found
-    //            if (nalUnitType == H265_NAL_SPS) {
-    //                int offsetSps = nalUnitTypeIndex + 1;
-    //                ByteBuffer buffer = ByteBuffer.wrap(data, offsetSps, length - offsetSps);
-    //                SeqParameterSet sps = SeqParameterSetH265.read(buffer);
-    //                Size size = H265Utils.getPicSize(sps);
-    //                if (DEBUG)
-    //                    Log.d(TAG, "NAL SPS size " + size.getWidth() + "x" + size.getHeight());
-    //                return size;
-    //            }
-    //        }
-    //        // No SPS NAL unit found
-    //        return null;
-    //    }
     fun getH264NalUnitTypeString(nalUnitType: Byte): String {
         return when (nalUnitType) {
             NAL_SLICE -> "NAL_SLICE"

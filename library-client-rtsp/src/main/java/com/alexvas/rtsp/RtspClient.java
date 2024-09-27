@@ -9,8 +9,10 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.alexvas.rtsp.parser.AacParser;
+import com.alexvas.rtsp.parser.RtpH264Parser;
+import com.alexvas.rtsp.parser.RtpH265Parser;
+import com.alexvas.rtsp.parser.RtpHeaderParser;
 import com.alexvas.rtsp.parser.RtpParser;
-import com.alexvas.rtsp.parser.VideoRtpParser;
 import com.alexvas.utils.NetUtils;
 import com.alexvas.utils.VideoCodecUtils;
 
@@ -187,8 +189,7 @@ public class RtspClient {
         public int videoCodec = VIDEO_CODEC_H264;
         public @Nullable byte[] sps; // Both H.264 and H.265
         public @Nullable byte[] pps; // Both H.264 and H.265
-//      public @Nullable byte[] vps; // H.265 only
-//      public @Nullable byte[] sei; // H.265 only
+        public @Nullable byte[] vps; // H.265 only
     }
 
     public static final int AUDIO_CODEC_UNKNOWN = -1;
@@ -599,7 +600,9 @@ public class RtspClient {
     throws IOException {
         byte[] data = EMPTY_ARRAY; // Usually not bigger than MTU = 15KB
 
-        final VideoRtpParser videoParser = new VideoRtpParser();
+        final RtpParser videoParser = (sdpInfo.videoTrack != null && sdpInfo.videoTrack.videoCodec == VIDEO_CODEC_H265 ?
+                new RtpH265Parser() :
+                new RtpH264Parser());
         final AacParser audioParser = (sdpInfo.audioTrack != null && sdpInfo.audioTrack.audioCodec == AUDIO_CODEC_AAC ?
                 new AacParser(sdpInfo.audioTrack.mode) :
                 null);
@@ -613,7 +616,7 @@ public class RtspClient {
         long keepAliveSent = System.currentTimeMillis();
 
         while (!exitFlag.get()) {
-            RtpParser.RtpHeader header = RtpParser.readHeader(inputStream);
+            RtpHeaderParser.RtpHeader header = RtpHeaderParser.readHeader(inputStream);
             if (header == null) {
                 continue;
 //                throw new IOException("No RTP frames found");
@@ -638,8 +641,9 @@ public class RtspClient {
                 videoSeqNum = header.sequenceNumber;
                 byte[] nalUnit = videoParser.processRtpPacketAndGetNalUnit(data, header.payloadSize, header.marker == 1);
                 if (nalUnit != null) {
-                    byte type = VideoCodecUtils.INSTANCE.getH264NalUnitType(nalUnit, 0, nalUnit.length);
-//                  Log.i(TAG, "NAL u: " + VideoCodecUtils.getH264NalUnitTypeString(type));
+                    boolean isH265 = true;
+                    byte type = VideoCodecUtils.INSTANCE.getNalUnitType(nalUnit, 0, nalUnit.length, isH265);
+//                  Log.i(TAG, "NAL u: " + VideoCodecUtils.INSTANCE.getH265NalUnitTypeString(type));
                     switch (type) {
                         case VideoCodecUtils.NAL_SPS:
                             nalUnitSps = nalUnit;
@@ -1111,34 +1115,59 @@ public class RtspClient {
         return null;
     }
 
+    @NonNull
+    private static byte[] getNalUnitFromSprop(String nalBase64) {
+        byte[] nal = Base64.decode(nalBase64, Base64.NO_WRAP);
+        byte[] nalWithStart = new byte[nal.length + 4];
+        // Add 00 00 00 01 NAL unit header
+        nalWithStart[0] = 0;
+        nalWithStart[1] = 0;
+        nalWithStart[2] = 0;
+        nalWithStart[3] = 1;
+        System.arraycopy(nal, 0, nalWithStart, 4, nal.length);
+        return nalWithStart;
+    }
+
     private static void updateVideoTrackFromDescribeParam(@NonNull VideoTrack videoTrack, @NonNull Pair<String, String> param) {
         // a=fmtp:96 packetization-mode=1;profile-level-id=42C028;sprop-parameter-sets=Z0LAKIyNQDwBEvLAPCIRqA==,aM48gA==;
         // a=fmtp:96 packetization-mode=1; profile-level-id=4D4029; sprop-parameter-sets=Z01AKZpmBkCb8uAtQEBAQXpw,aO48gA==
         // a=fmtp:99 sprop-parameter-sets=Z0LgKdoBQBbpuAgIMBA=,aM4ySA==;packetization-mode=1;profile-level-id=42e029
+        // a=fmtp:98 profile-id=1;sprop-sps=QgEBAWAAAAMAgAAAAwAAAwB4oAWCAJB/ja7tTd3Jdf+ACAAFtwUFBQQAAA+gAAGGoch3uUQD6AARlAB9AAIygg==;sprop-pps=RAHBcrAiQA==;sprop-vps=QAEMAf//AWAAAAMAgAAAAwAAAwB4rAk=
         List<Pair<String, String>> params = getSdpAParams(param);
         if (params != null) {
             for (Pair<String, String> pair: params) {
                 switch (pair.first.toLowerCase()) {
+                    case "sprop-sps" -> {
+                        videoTrack.sps = getNalUnitFromSprop(pair.second);
+                    }
+                    case "sprop-pps" -> {
+                        videoTrack.pps = getNalUnitFromSprop(pair.second);
+                    }
+                    case "sprop-vps" -> {
+                        videoTrack.vps = getNalUnitFromSprop(pair.second);
+                    }
                     case "sprop-parameter-sets" -> {
                         String[] paramsSpsPps = TextUtils.split(pair.second, ",");
                         if (paramsSpsPps.length > 1) {
-                            byte[] sps = Base64.decode(paramsSpsPps[0], Base64.NO_WRAP);
-                            byte[] pps = Base64.decode(paramsSpsPps[1], Base64.NO_WRAP);
-                            byte[] nalSps = new byte[sps.length + 4];
-                            byte[] nalPps = new byte[pps.length + 4];
-                            // Add 00 00 00 01 NAL unit header
-                            nalSps[0] = 0;
-                            nalSps[1] = 0;
-                            nalSps[2] = 0;
-                            nalSps[3] = 1;
-                            System.arraycopy(sps, 0, nalSps, 4, sps.length);
-                            nalPps[0] = 0;
-                            nalPps[1] = 0;
-                            nalPps[2] = 0;
-                            nalPps[3] = 1;
-                            System.arraycopy(pps, 0, nalPps, 4, pps.length);
-                            videoTrack.sps = nalSps;
-                            videoTrack.pps = nalPps;
+                            videoTrack.sps = getNalUnitFromSprop(paramsSpsPps[0]);
+                            videoTrack.pps = getNalUnitFromSprop(paramsSpsPps[1]);
+//                            Base64.decode(paramsSpsPps[0], Base64.NO_WRAP);
+//                            byte[] pps = Base64.decode(paramsSpsPps[1], Base64.NO_WRAP);
+//                            byte[] nalSps = new byte[sps.length + 4];
+//                            byte[] nalPps = new byte[pps.length + 4];
+//                            // Add 00 00 00 01 NAL unit header
+//                            nalSps[0] = 0;
+//                            nalSps[1] = 0;
+//                            nalSps[2] = 0;
+//                            nalSps[3] = 1;
+//                            System.arraycopy(sps, 0, nalSps, 4, sps.length);
+//                            nalPps[0] = 0;
+//                            nalPps[1] = 0;
+//                            nalPps[2] = 0;
+//                            nalPps[3] = 1;
+//                            System.arraycopy(pps, 0, nalPps, 4, pps.length);
+//                            videoTrack.sps = nalSps;
+//                            videoTrack.pps = nalPps;
                         }
                     }
                     // packetization-mode=1

@@ -121,9 +121,14 @@ class RtspProcessor(
                 // Initialize decoder
                 @SuppressLint("UnsafeOptInUsageError")
                 if (sps != null && pps != null) {
-                    val data = ByteArray(sps.size + pps.size)
-                    sps.copyInto(data, 0, 0, sps.size)
-                    pps.copyInto(data, sps.size, 0, pps.size)
+                    val vps: ByteArray = sdpInfo.videoTrack?.vps ?: ByteArray(0)
+                    val data = ByteArray(sps.size + pps.size + vps.size)
+                    var offset = 0
+                    sps.copyInto(data, offset, 0, sps.size)
+                    offset += sps.size
+                    pps.copyInto(data, offset, 0, pps.size)
+                    offset += pps.size
+                    vps.copyInto(data, offset, 0, vps.size)
                     videoFrameQueue.push(
                         FrameQueue.VideoFrame(
                             VideoCodecType.H264,
@@ -135,9 +140,9 @@ class RtspProcessor(
                         )
                     )
                     try {
-                        val offset = if (sps[3] == 1.toByte()) 5 else 4
+                        val startNalOffset = if (sps[3] == 1.toByte()) 5 else 4
                         val spsData = NalUnitUtil.parseSpsNalUnitPayload(
-                            data, offset, data.size - offset)
+                            data, startNalOffset, data.size - startNalOffset)
                         if (spsData.maxNumReorderFrames > 0) {
                             Log.w(
                                 TAG, "SPS frame param max_num_reorder_frames=" +
@@ -146,9 +151,11 @@ class RtspProcessor(
                             )
                         }
                         if (debug) {
-                            Log.d(TAG, "SPS frame: " + sps.toHexString(0, sps.size))
+                            Log.d(TAG, "SPS frame: ${sps.toHexString(0, sps.size)}")
                             Log.d(TAG, "\t${spsData.spsDataToString()}")
-                            Log.d(TAG, "PPS frame: " + pps.toHexString(0, pps.size))
+                            Log.d(TAG, "PPS frame: ${pps.toHexString(0, pps.size)}")
+                            if (vps.isNotEmpty())
+                                Log.d(TAG, "VPS frame: ${vps.toHexString(0, vps.size)}")
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
@@ -178,14 +185,20 @@ class RtspProcessor(
         override fun onRtspVideoNalUnitReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
             if (DEBUG) Log.v(TAG, "onRtspVideoNalUnitReceived(length=$length)")
 
+            val isH265 = videoMimeType == MediaFormat.MIMETYPE_VIDEO_HEVC
             // Search for NAL_IDR_SLICE within first 1KB maximum
-            val isKeyframe = VideoCodecUtils.isAnyH264KeyFrame(data, offset, min(length, 1000))
+            val isKeyframe = VideoCodecUtils.isAnyKeyFrame(data, offset, min(length, 1000), isH265)
             if (debug) {
                 val nals = ArrayList<VideoCodecUtils.NalUnit>()
-                VideoCodecUtils.getH264NalUnits(data, offset, length, nals)
+                VideoCodecUtils.getNalUnits(data, offset, length, nals, isH265)
                 var b = StringBuilder()
                 for (nal in nals) {
-                    b.append(VideoCodecUtils.getH264NalUnitTypeString(nal.type)).append(" (${nal.length}), ")
+                    b
+                    .append(if (isH265)
+                            VideoCodecUtils.getH265NalUnitTypeString(nal.type)
+                        else
+                            VideoCodecUtils.getH264NalUnitTypeString(nal.type))
+                    .append(" (${nal.length}), ")
                 }
                 if (b.length > 2)
                     b = b.removeRange(b.length - 2, b.length) as StringBuilder
@@ -196,7 +209,8 @@ class RtspProcessor(
                         data,
                         offset,
                         // Check only first 100 bytes maximum. That's enough for finding SPS NAL unit.
-                        Integer.min(length, 100)
+                        Integer.min(length, 100),
+                        isH265
                     )
                     Log.d(TAG,
                         "\tKey frame received ($length bytes, ts=$timestamp," +
@@ -416,6 +430,7 @@ class RtspProcessor(
     companion object {
         private val TAG: String = RtspProcessor::class.java.simpleName
         private const val DEBUG = false
+
         private const val DEFAULT_RTSP_PORT = 554
     }
 

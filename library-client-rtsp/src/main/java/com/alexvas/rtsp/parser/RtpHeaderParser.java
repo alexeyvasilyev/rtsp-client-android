@@ -10,9 +10,9 @@ import com.alexvas.utils.NetUtils;
 import java.io.IOException;
 import java.io.InputStream;
 
-public class RtpParser {
+public class RtpHeaderParser {
 
-    private static final String TAG = RtpParser.class.getSimpleName();
+    private static final String TAG = RtpHeaderParser.class.getSimpleName();
     private static final boolean DEBUG = false;
 
     private final static int RTP_HEADER_SIZE = 12;
@@ -98,7 +98,7 @@ public class RtpParser {
         }
 
         public void dumpHeader() {
-            Log.d("RTP","RTP header version: " + version
+            Log.d("RTP","\t\tRTP header version: " + version
                     + ", padding: " + padding
                     + ", ext: " + extension
                     + ", cc: " + cc
