@@ -8,13 +8,14 @@ Unlike [AndroidX Media ExoPlayer](https://github.com/androidx/media) which also 
 ![Screenshot](docs/images/rtsp-demo-app.webp?raw=true "Screenshot")
 
 ## Features:
-- Android min API 24.
 - RTSP/RTSPS over TCP.
+- Supports majority of RTSP IP cameras.
 - Video H.264/H.265.
 - Audio AAC LC only.
+- Support for application specific data sent via RTP, e.g. GPS data (`m=application`, see [RFC 4566 sec.5.14](https://datatracker.ietf.org/doc/html/rfc4566#section-5.14))
 - Basic/Digest authentication.
-- Supports majority of RTSP IP cameras.
 - Uses Android's [Low-Latency MediaCodec](https://source.android.com/docs/core/media/low-latency-media) by default if available.
+- Android min API 24.
 
 
 ## Permissions:
@@ -62,7 +63,10 @@ val uri = Uri.parse("rtsps://10.0.1.3/test.sdp")
 val username = "admin"
 val password = "secret"
 svVideo.init(uri, username, password)
-svVideo.start(requestVideo = true, requestAudio = true)
+svVideo.start(
+    requestVideo = true,
+    requestAudio = true,
+    requestApplication = false)
 // ...
 svVideo.stop()
 ```
@@ -78,6 +82,9 @@ val rtspClientListener = object: RtspClient.RtspClientListener {
     }
     override fun onRtspAudioSampleReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
         // Send raw audio to decoder
+    }
+    override fun onRtspApplicationDataReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
+        // Send raw application data to app specific parser
     }
     override fun onRtspDisconnected() {}
     override fun onRtspFailedUnauthorized() {
