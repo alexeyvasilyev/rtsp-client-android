@@ -15,7 +15,7 @@ import com.alexvas.rtsp.widget.RtspProcessor.Statistics
  */
 class RtspImageView : ImageView {
 
-    /** Listener to be called when bitmap obtained from video decoder. */
+    /** Optional listener to be called when bitmap obtained from video decoder. */
     var onRtspImageBitmapListener: RtspImageBitmapListener? = null
 
     interface RtspImageBitmapListener {
@@ -79,11 +79,22 @@ class RtspImageView : ImageView {
         rtspProcessor.init(uri, username, password, userAgent)
     }
 
-    fun start(requestVideo: Boolean, requestAudio: Boolean) {
-        if (DEBUG) Log.v(TAG, "start(requestVideo=$requestVideo, requestAudio=$requestAudio)")
-        rtspProcessor.start(requestVideo, requestAudio)
+    /**
+     * Start RTSP client.
+     *
+     * @param requestVideo request video track
+     * @param requestAudio request audio track
+     * @param requestApplication request application track
+     * @see https://datatracker.ietf.org/doc/html/rfc4566#section-5.14
+     */
+    fun start(requestVideo: Boolean, requestAudio: Boolean, requestApplication: Boolean) {
+        if (DEBUG) Log.v(TAG, "start(requestVideo=$requestVideo, requestAudio=$requestAudio, requestApplication=$requestApplication)")
+        rtspProcessor.start(requestVideo, requestAudio, requestApplication)
     }
 
+    /**
+     * Stop RTSP client.
+     */
     fun stop() {
         if (DEBUG) Log.v(TAG, "stop()")
         rtspProcessor.stop()
@@ -95,9 +106,13 @@ class RtspImageView : ImageView {
 
     fun setStatusListener(listener: RtspStatusListener?) {
         if (DEBUG) Log.v(TAG, "setStatusListener()")
-        rtspProcessor.setStatusListener(listener)
+        rtspProcessor.statusListener = listener
     }
 
+    fun setDataListener(listener: RtspDataListener?) {
+        if (DEBUG) Log.v(TAG, "setDataListener()")
+        rtspProcessor.dataListener = listener
+    }
 
     companion object {
         private val TAG: String = RtspImageView::class.java.simpleName

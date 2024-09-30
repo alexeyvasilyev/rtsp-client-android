@@ -6,8 +6,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
-import android.text.Editable
-import android.text.TextWatcher
 import android.util.Log
 import android.view.*
 import android.widget.Toast
@@ -15,11 +13,14 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.alexvas.rtsp.codec.VideoDecodeThread
 import com.alexvas.rtsp.demo.databinding.FragmentLiveBinding
+import com.alexvas.rtsp.widget.RtspDataListener
 import com.alexvas.rtsp.widget.RtspImageView
 import com.alexvas.rtsp.widget.RtspStatusListener
+import com.alexvas.rtsp.widget.toHexString
 import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.min
 
 @SuppressLint("LogNotTimber")
 class LiveFragment : Fragment() {
@@ -27,23 +28,28 @@ class LiveFragment : Fragment() {
     private lateinit var binding: FragmentLiveBinding
     private lateinit var liveViewModel: LiveViewModel
 
+    private var statisticsTimer: Timer? = null
+
     private val rtspStatusSurfaceListener = object: RtspStatusListener {
         override fun onRtspStatusConnecting() {
+            if (DEBUG) Log.v(TAG, "onRtspStatusConnecting()")
             binding.apply {
                 tvStatusSurface.text = "RTSP connecting"
                 pbLoadingSurface.visibility = View.VISIBLE
                 vShutterSurface.visibility = View.VISIBLE
-                etRtspRequest.isEnabled = false
-                etRtspUsername.isEnabled = false
-                etRtspPassword.isEnabled = false
-                cbVideo.isEnabled = false
-                cbAudio.isEnabled = false
-                cbDebug.isEnabled = false
+                llRtspParams.etRtspRequest.isEnabled = false
+                llRtspParams.etRtspUsername.isEnabled = false
+                llRtspParams.etRtspPassword.isEnabled = false
+                llRtspParams.cbVideo.isEnabled = false
+                llRtspParams.cbAudio.isEnabled = false
+                llRtspParams.cbApplication.isEnabled = false
+                llRtspParams.cbDebug.isEnabled = false
                 tgRotation.isEnabled = false
             }
         }
 
         override fun onRtspStatusConnected() {
+            if (DEBUG) Log.v(TAG, "onRtspStatusConnected()")
             binding.apply {
                 tvStatusSurface.text = "RTSP connected"
                 bnStartStopSurface.text = "Stop RTSP"
@@ -53,48 +59,54 @@ class LiveFragment : Fragment() {
         }
 
         override fun onRtspStatusDisconnecting() {
+            if (DEBUG) Log.v(TAG, "onRtspStatusDisconnecting()")
             binding.apply {
                 tvStatusSurface.text = "RTSP disconnecting"
             }
         }
 
         override fun onRtspStatusDisconnected() {
+            if (DEBUG) Log.v(TAG, "onRtspStatusDisconnected()")
             binding.apply {
                 tvStatusSurface.text = "RTSP disconnected"
                 bnStartStopSurface.text = "Start RTSP"
                 pbLoadingSurface.visibility = View.GONE
                 vShutterSurface.visibility = View.VISIBLE
                 pbLoadingSurface.isEnabled = false
-                cbVideo.isEnabled = true
-                cbAudio.isEnabled = true
-                cbDebug.isEnabled = true
-                etRtspRequest.isEnabled = true
-                etRtspUsername.isEnabled = true
-                etRtspPassword.isEnabled = true
+                llRtspParams.cbVideo.isEnabled = true
+                llRtspParams.cbAudio.isEnabled = true
+                llRtspParams.cbApplication.isEnabled = true
+                llRtspParams.cbDebug.isEnabled = true
+                llRtspParams.etRtspRequest.isEnabled = true
+                llRtspParams.etRtspUsername.isEnabled = true
+                llRtspParams.etRtspPassword.isEnabled = true
                 tgRotation.isEnabled = true
             }
             setKeepScreenOn(false)
         }
 
         override fun onRtspStatusFailedUnauthorized() {
+            if (DEBUG) Log.e(TAG, "onRtspStatusFailedUnauthorized()")
             if (context == null) return
+            onRtspStatusDisconnected()
             binding.apply {
                 tvStatusSurface.text = "RTSP username or password invalid"
                 pbLoadingSurface.visibility = View.GONE
             }
-            Toast.makeText(context, binding.tvStatusSurface.text , Toast.LENGTH_LONG).show()
         }
 
         override fun onRtspStatusFailed(message: String?) {
+            if (DEBUG) Log.e(TAG, "onRtspStatusFailed(message='$message')")
             if (context == null) return
+            onRtspStatusDisconnected()
             binding.apply {
                 tvStatusSurface.text = "Error: $message"
-                Toast.makeText(context, tvStatusSurface.text, Toast.LENGTH_LONG).show()
                 pbLoadingSurface.visibility = View.GONE
             }
         }
 
         override fun onRtspFirstFrameRendered() {
+            if (DEBUG) Log.v(TAG, "onRtspFirstFrameRendered()")
             binding.apply {
                 vShutterSurface.visibility = View.GONE
                 bnSnapshotSurface.isEnabled = true
@@ -102,8 +114,16 @@ class LiveFragment : Fragment() {
         }
     }
 
+    private val rtspDataListener = object: RtspDataListener {
+        override fun onRtspDataApplicationDataReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
+            val numBytesDump = min(length, 25) // dump max 25 bytes
+            Log.i(TAG, "RTSP app data ($length bytes): ${data.toHexString(offset, offset + numBytesDump)}")
+        }
+    }
+
     private val rtspStatusImageListener = object: RtspStatusListener {
         override fun onRtspStatusConnecting() {
+            if (DEBUG) Log.v(TAG, "onRtspStatusConnecting()")
             binding.apply {
                 tvStatusImage.text = "RTSP connecting"
                 pbLoadingImage.visibility = View.VISIBLE
@@ -112,6 +132,7 @@ class LiveFragment : Fragment() {
         }
 
         override fun onRtspStatusConnected() {
+            if (DEBUG) Log.v(TAG, "onRtspStatusConnected()")
             binding.apply {
                 tvStatusImage.text = "RTSP connected"
                 bnStartStopImage.text = "Stop RTSP"
@@ -121,12 +142,14 @@ class LiveFragment : Fragment() {
         }
 
         override fun onRtspStatusDisconnecting() {
+            if (DEBUG) Log.v(TAG, "onRtspStatusDisconnecting()")
             binding.apply {
                 tvStatusImage.text = "RTSP disconnecting"
             }
         }
 
         override fun onRtspStatusDisconnected() {
+            if (DEBUG) Log.v(TAG, "onRtspStatusDisconnected()")
             binding.apply {
                 tvStatusImage.text = "RTSP disconnected"
                 bnStartStopImage.text = "Start RTSP"
@@ -138,24 +161,27 @@ class LiveFragment : Fragment() {
         }
 
         override fun onRtspStatusFailedUnauthorized() {
+            if (DEBUG) Log.e(TAG, "onRtspStatusFailedUnauthorized()")
             if (context == null) return
+            onRtspStatusDisconnected()
             binding.apply {
                 tvStatusImage.text = "RTSP username or password invalid"
                 pbLoadingImage.visibility = View.GONE
             }
-            Toast.makeText(context, binding.tvStatusImage.text , Toast.LENGTH_LONG).show()
         }
 
         override fun onRtspStatusFailed(message: String?) {
+            if (DEBUG) Log.e(TAG, "onRtspStatusFailed(message='$message')")
             if (context == null) return
+            onRtspStatusDisconnected()
             binding.apply {
                 tvStatusImage.text = "Error: $message"
-                Toast.makeText(context, tvStatusImage.text, Toast.LENGTH_LONG).show()
                 pbLoadingImage.visibility = View.GONE
             }
         }
 
         override fun onRtspFirstFrameRendered() {
+            if (DEBUG) Log.v(TAG, "onRtspFirstFrameRendered()")
             binding.apply {
                 vShutterImage.visibility = View.GONE
             }
@@ -193,55 +219,27 @@ class LiveFragment : Fragment() {
         binding.bnVideoDecoderGroup.check(binding.bnVideoDecoderHardware.id)
 
         binding.svVideoSurface.setStatusListener(rtspStatusSurfaceListener)
+        binding.svVideoSurface.setDataListener(rtspDataListener)
         binding.ivVideoImage.setStatusListener(rtspStatusImageListener)
-        binding.etRtspRequest.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) {
-            }
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
-            }
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                val text = s.toString()
-                if (text != liveViewModel.rtspRequest.value) {
-                    liveViewModel.rtspRequest.value = text
-                }
-            }
-        })
-        binding.etRtspUsername.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) {
-            }
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
-            }
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                val text = s.toString()
-                if (text != liveViewModel.rtspUsername.value) {
-                    liveViewModel.rtspUsername.value = text
-                }
-            }
-        })
-        binding.etRtspPassword.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) {
-            }
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
-            }
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                val text = s.toString()
-                if (text != liveViewModel.rtspPassword.value) {
-                    liveViewModel.rtspPassword.value = text
-                }
-            }
-        })
+        binding.ivVideoImage.setDataListener(rtspDataListener)
+
+        liveViewModel.initEditTexts(
+            binding.llRtspParams.etRtspRequest,
+            binding.llRtspParams.etRtspUsername,
+            binding.llRtspParams.etRtspPassword
+        )
 
         liveViewModel.rtspRequest.observe(viewLifecycleOwner) {
-            if (binding.etRtspRequest.text.toString() != it)
-                binding.etRtspRequest.setText(it)
+            if (binding.llRtspParams.etRtspRequest.text.toString() != it)
+                binding.llRtspParams.etRtspRequest.setText(it)
         }
         liveViewModel.rtspUsername.observe(viewLifecycleOwner) {
-            if (binding.etRtspUsername.text.toString() != it)
-                binding.etRtspUsername.setText(it)
+            if (binding.llRtspParams.etRtspUsername.text.toString() != it)
+                binding.llRtspParams.etRtspUsername.setText(it)
         }
         liveViewModel.rtspPassword.observe(viewLifecycleOwner) {
-            if (binding.etRtspPassword.text.toString() != it)
-                binding.etRtspPassword.setText(it)
+            if (binding.llRtspParams.etRtspPassword.text.toString() != it)
+                binding.llRtspParams.etRtspPassword.setText(it)
         }
 
         binding.bnRotate0.setOnClickListener {
@@ -283,9 +281,17 @@ class LiveFragment : Fragment() {
             } else {
                 val uri = Uri.parse(liveViewModel.rtspRequest.value)
                 binding.svVideoSurface.apply {
-                    init(uri, liveViewModel.rtspUsername.value, liveViewModel.rtspPassword.value, "rtsp-client-android")
-                    debug = binding.cbDebug.isChecked
-                    start(binding.cbVideo.isChecked, binding.cbAudio.isChecked)
+                    init(
+                        uri,
+                        username = liveViewModel.rtspUsername.value,
+                        password = liveViewModel.rtspPassword.value,
+                        userAgent = "rtsp-client-android")
+                    debug = binding.llRtspParams.cbDebug.isChecked
+                    start(
+                        requestVideo = binding.llRtspParams.cbVideo.isChecked,
+                        requestAudio = binding.llRtspParams.cbAudio.isChecked,
+                        requestApplication = binding.llRtspParams.cbApplication.isChecked
+                    )
                 }
                 startStatistics()
             }
@@ -299,13 +305,17 @@ class LiveFragment : Fragment() {
                 val uri = Uri.parse(liveViewModel.rtspRequest.value)
                 binding.ivVideoImage.apply {
                     init(uri, liveViewModel.rtspUsername.value, liveViewModel.rtspPassword.value, "rtsp-client-android")
-                    debug = binding.cbDebug.isChecked
+                    debug = binding.llRtspParams.cbDebug.isChecked
                     onRtspImageBitmapListener = object : RtspImageView.RtspImageBitmapListener {
                         override fun onRtspImageBitmapObtained(bitmap: Bitmap) {
                             // TODO: You can send bitmap for processing
                         }
                     }
-                    start(binding.cbVideo.isChecked, binding.cbAudio.isChecked)
+                    start(
+                        requestVideo = binding.llRtspParams.cbVideo.isChecked,
+                        requestAudio = binding.llRtspParams.cbAudio.isChecked,
+                        requestApplication = binding.llRtspParams.cbApplication.isChecked
+                    )
                 }
                 startStatistics()
             }
@@ -340,8 +350,6 @@ class LiveFragment : Fragment() {
             stopStatistics()
         }
     }
-
-    private var statisticsTimer: Timer? = null
 
     private fun startStatistics() {
         if (DEBUG) Log.v(TAG, "startStatistics()")

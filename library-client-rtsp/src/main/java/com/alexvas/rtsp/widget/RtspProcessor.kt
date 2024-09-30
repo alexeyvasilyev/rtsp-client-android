@@ -47,12 +47,12 @@ class RtspProcessor(
     private var userAgent: String? = null
     private var requestVideo = true
     private var requestAudio = true
+    private var requestApplication = false
     private var rtspThread: RtspThread? = null
     private var videoFrameQueue = VideoFrameQueue(60)
     private var audioFrameQueue = AudioFrameQueue(10)
     private var videoDecodeThread: VideoDecodeThread? = null
     private var audioDecodeThread: AudioDecodeThread? = null
-    private var statusListener: RtspStatusListener? = null
     private val uiHandler = Handler(Looper.getMainLooper())
     private var videoMimeType: String = "video/avc"
     private var audioMimeType: String = ""
@@ -94,6 +94,15 @@ class RtspProcessor(
      */
     var videoDecoderType = DecoderType.HARDWARE
 
+    /**
+     * Status listener for getting RTSP event updates.
+     */
+    var statusListener: RtspStatusListener? = null
+
+    /**
+     * Listener for getting raw data, e.g. for recording.
+     */
+    var dataListener: RtspDataListener? = null
 
     private val proxyClientListener = object: RtspClient.RtspClientListener {
 
@@ -183,7 +192,7 @@ class RtspProcessor(
         private var framesPerGop = 0
 
         override fun onRtspVideoNalUnitReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
-            if (DEBUG) Log.v(TAG, "onRtspVideoNalUnitReceived(length=$length)")
+            if (DEBUG) Log.v(TAG, "onRtspVideoNalUnitReceived(length=$length, timestamp=$timestamp)")
 
             val isH265 = videoMimeType == MediaFormat.MIMETYPE_VIDEO_HEVC
             // Search for NAL_IDR_SLICE within first 1KB maximum
@@ -233,10 +242,12 @@ class RtspProcessor(
                     capturedTimestampMs = System.currentTimeMillis()
                 )
             )
+            dataListener?.onRtspDataVideoNalUnitReceived(data, offset, length, timestamp)
         }
 
         override fun onRtspAudioSampleReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
-            if (length > 0)
+            if (DEBUG) Log.v(TAG, "onRtspAudioSampleReceived(length=$length, timestamp=$timestamp)")
+            if (length > 0) {
                 audioFrameQueue.push(
                     FrameQueue.AudioFrame(
                         AudioCodecType.AAC_LC,
@@ -245,6 +256,13 @@ class RtspProcessor(
                         timestamp
                     )
                 )
+            }
+            dataListener?.onRtspDataAudioSampleReceived(data, offset, length, timestamp)
+        }
+
+        override fun onRtspApplicationDataReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
+            if (DEBUG) Log.v(TAG, "onRtspApplicationDataReceived(length=$length, timestamp=$timestamp)")
+            dataListener?.onRtspDataApplicationDataReceived(data, offset, length, timestamp)
         }
 
         override fun onRtspDisconnecting() {
@@ -277,7 +295,7 @@ class RtspProcessor(
     }
 
     inner class RtspThread: Thread() {
-        private var rtspStopped: AtomicBoolean = AtomicBoolean(false)
+        private var rtspStopped = AtomicBoolean(false)
 
         fun stopAsync() {
             if (DEBUG) Log.v(TAG, "stopAsync()")
@@ -301,6 +319,7 @@ class RtspProcessor(
                 val rtspClient = RtspClient.Builder(socket, uri.toString(), rtspStopped, proxyClientListener)
                     .requestVideo(requestVideo)
                     .requestAudio(requestAudio)
+                    .requestApplication(requestApplication)
                     .withDebug(debug)
                     .withUserAgent(userAgent)
                     .withCredentials(username, password)
@@ -315,11 +334,6 @@ class RtspProcessor(
         }
     }
 
-    fun setStatusListener(listener: RtspStatusListener?) {
-        if (DEBUG) Log.v(TAG, "setStatusListener()")
-        this.statusListener = listener
-    }
-
     private val videoDecoderListener = object: VideoDecoderListener {
         override fun onVideoDecoderStarted() {
             if (DEBUG) Log.v(TAG, "onVideoDecoderStarted()")
@@ -330,7 +344,7 @@ class RtspProcessor(
         }
 
         override fun onVideoDecoderFailed(message: String?) {
-            if (DEBUG) Log.v(TAG, "onVideoDecoderFailed(message='$message')")
+            if (DEBUG) Log.e(TAG, "onVideoDecoderFailed(message='$message')")
         }
 
         override fun onVideoDecoderFormatChanged(width: Int, height: Int) {
@@ -347,7 +361,7 @@ class RtspProcessor(
 
     private fun onRtspClientStarted() {
         if (DEBUG) Log.v(TAG, "onRtspClientStarted()")
-        uiHandler.post { statusListener?.onRtspStatusConnected() }
+//        uiHandler.post { statusListener?.onRtspStatusConnected() }
     }
 
     private fun onRtspClientConnected() {
@@ -382,7 +396,7 @@ class RtspProcessor(
         if (DEBUG) Log.v(TAG, "onRtspClientStopped()")
         stopDecoders()
         rtspThread = null
-        uiHandler.post { statusListener?.onRtspStatusDisconnected() }
+//        uiHandler.post { statusListener?.onRtspStatusDisconnected() }
     }
 
     fun init(uri: Uri, username: String?, password: String?, userAgent: String? = null) {
@@ -393,11 +407,12 @@ class RtspProcessor(
         this.userAgent = userAgent
     }
 
-    fun start(requestVideo: Boolean, requestAudio: Boolean) {
-        if (DEBUG) Log.v(TAG, "start(requestVideo=$requestVideo, requestAudio=$requestAudio)")
+    fun start(requestVideo: Boolean, requestAudio: Boolean, requestApplication: Boolean = false) {
+        if (DEBUG) Log.v(TAG, "start(requestVideo=$requestVideo, requestAudio=$requestAudio, requestApplication=$requestApplication)")
         if (rtspThread != null) rtspThread?.stopAsync()
         this.requestVideo = requestVideo
         this.requestAudio = requestAudio
+        this.requestApplication = requestApplication
         rtspThread = RtspThread().apply {
             name = "RTSP IO thread [${getUriName()}]"
             start()

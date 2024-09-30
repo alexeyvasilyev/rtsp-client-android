@@ -10,6 +10,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.container.NalUnitUtil
 import com.alexvas.rtsp.codec.VideoDecodeThread
+import com.alexvas.rtsp.codec.VideoDecodeThread.DecoderType
 import com.alexvas.rtsp.codec.VideoDecoderSurfaceThread
 import com.alexvas.rtsp.widget.RtspProcessor.Statistics
 
@@ -21,19 +22,21 @@ open class RtspSurfaceView: SurfaceView {
     private var surfaceWidth = 1920
     private var surfaceHeight = 1080
 
-    private var rtspProcessor = RtspProcessor(onVideoDecoderCreateRequested = {
-        videoMimeType, videoRotation, videoFrameQueue, videoDecoderListener, videoDecoderType ->
-        VideoDecoderSurfaceThread(
-            holder.surface,
-            videoMimeType,
-            surfaceWidth,
-            surfaceHeight,
-            videoRotation,
-            videoFrameQueue,
-            videoDecoderListener,
-            videoDecoderType,
-        )
-    })
+    private var rtspProcessor = RtspProcessor(
+        onVideoDecoderCreateRequested = {
+            videoMimeType, videoRotation, videoFrameQueue, videoDecoderListener, videoDecoderType ->
+            VideoDecoderSurfaceThread(
+                holder.surface,
+                videoMimeType,
+                surfaceWidth,
+                surfaceHeight,
+                videoRotation,
+                videoFrameQueue,
+                videoDecoderListener,
+                videoDecoderType,
+            )
+        }
+    )
 
     var statistics = Statistics()
         get() = rtspProcessor.statistics
@@ -43,13 +46,19 @@ open class RtspSurfaceView: SurfaceView {
         get() = rtspProcessor.videoRotation
         set(value) { rtspProcessor.videoRotation = value }
 
-    var videoDecoderType: VideoDecodeThread.DecoderType
+    var videoDecoderType: DecoderType
         get() = rtspProcessor.videoDecoderType
         set(value) { rtspProcessor.videoDecoderType = value }
 
     var debug: Boolean
         get() = rtspProcessor.debug
         set(value) { rtspProcessor.debug = value }
+
+    var onApplicationDataReceived: ((
+        data: ByteArray,
+        offset: Int,
+        length: Int
+    ) -> VideoDecodeThread)? = null
 
     private val surfaceCallback = object: SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder) {
@@ -90,11 +99,22 @@ open class RtspSurfaceView: SurfaceView {
         rtspProcessor.init(uri, username, password, userAgent)
     }
 
-    fun start(requestVideo: Boolean, requestAudio: Boolean) {
-        if (DEBUG) Log.v(TAG, "start(requestVideo=$requestVideo, requestAudio=$requestAudio)")
-        rtspProcessor.start(requestVideo, requestAudio)
+    /**
+     * Start RTSP client.
+     *
+     * @param requestVideo request video track
+     * @param requestAudio request audio track
+     * @param requestApplication request application track
+     * @see https://datatracker.ietf.org/doc/html/rfc4566#section-5.14
+     */
+    fun start(requestVideo: Boolean, requestAudio: Boolean, requestApplication: Boolean = false) {
+        if (DEBUG) Log.v(TAG, "start(requestVideo=$requestVideo, requestAudio=$requestAudio, requestApplication=$requestApplication)")
+        rtspProcessor.start(requestVideo, requestAudio, requestApplication)
     }
 
+    /**
+     * Stop RTSP client.
+     */
     fun stop() {
         if (DEBUG) Log.v(TAG, "stop()")
         rtspProcessor.stop()
@@ -106,7 +126,12 @@ open class RtspSurfaceView: SurfaceView {
 
     fun setStatusListener(listener: RtspStatusListener?) {
         if (DEBUG) Log.v(TAG, "setStatusListener()")
-        rtspProcessor.setStatusListener(listener)
+        rtspProcessor.statusListener = listener
+    }
+
+    fun setDataListener(listener: RtspDataListener?) {
+        if (DEBUG) Log.v(TAG, "setDataListener()")
+        rtspProcessor.dataListener = listener
     }
 
     companion object {

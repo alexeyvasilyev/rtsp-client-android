@@ -152,6 +152,7 @@ public class RtspClient {
         void onRtspConnected(@NonNull SdpInfo sdpInfo);
         void onRtspVideoNalUnitReceived(@NonNull byte[] data, int offset, int length, long timestamp);
         void onRtspAudioSampleReceived(@NonNull byte[] data, int offset, int length, long timestamp);
+        void onRtspApplicationDataReceived(@NonNull byte[] data, int offset, int length, long timestamp);
         void onRtspDisconnecting();
         void onRtspDisconnected();
         void onRtspFailedUnauthorized();
@@ -175,6 +176,7 @@ public class RtspClient {
 
         public @Nullable VideoTrack videoTrack;
         public @Nullable AudioTrack audioTrack;
+        public @Nullable ApplicationTrack applicationTrack;
     }
 
     public abstract static class Track {
@@ -240,6 +242,7 @@ public class RtspClient {
 //  private boolean sendOptionsCommand;
     private final boolean requestVideo;
     private final boolean requestAudio;
+    private final boolean requestApplication;
     private final boolean debug;
     private final @Nullable String username;
     private final @Nullable String password;
@@ -253,6 +256,7 @@ public class RtspClient {
 //      sendOptionsCommand = builder.sendOptionsCommand;
         requestVideo = builder.requestVideo;
         requestAudio = builder.requestAudio;
+        requestApplication = builder.requestApplication;
         username = builder.username;
         password = builder.password;
         debug = builder.debug;
@@ -377,6 +381,8 @@ public class RtspClient {
                         sdpInfo.videoTrack = null;
                     if (!requestAudio)
                         sdpInfo.audioTrack = null;
+                    if (!requestApplication)
+                        sdpInfo.applicationTrack = null;
                     // Only AAC supported
                     if (sdpInfo.audioTrack != null && sdpInfo.audioTrack.audioCodec == AUDIO_CODEC_UNKNOWN) {
                         Log.e(TAG_DEBUG, "Unknown RTSP audio codec (" + sdpInfo.audioTrack.audioCodec + ") specified in SDP");
@@ -399,12 +405,15 @@ public class RtspClient {
 // Session: Mzk5MzY2MzUwMTg3NTc2Mzc5NQ;timeout=30
             String session = null;
             int sessionTimeout = 0;
-            for (int i = 0; i < 2; i++) {
-                // i=0 - video track, i=1 - audio track
+            for (int i = 0; i < 3; i++) {
+                // 0 - video track, 1 - audio track, 2 - application track
                 checkExitFlag(exitFlag);
-                Track track = (i == 0 ?
-                        (requestVideo ? sdpInfo.videoTrack : null) :
-                        (requestAudio ? sdpInfo.audioTrack : null));
+                Track track;
+                switch (i) {
+                    case 0 -> track = requestVideo ? sdpInfo.videoTrack : null;
+                    case 1 -> track = requestAudio ? sdpInfo.audioTrack : null;
+                    default -> track = requestApplication ? sdpInfo.applicationTrack : null;
+                };
                 if (track != null) {
                     String uriRtspSetup = getUriForSetup(uriRtsp, track);
                     if (uriRtspSetup == null) {
@@ -483,7 +492,7 @@ public class RtspClient {
 
             listener.onRtspConnected(sdpInfo);
 
-            if (sdpInfo.videoTrack != null ||  sdpInfo.audioTrack != null) {
+            if (sdpInfo.videoTrack != null ||  sdpInfo.audioTrack != null || sdpInfo.applicationTrack != null) {
                 if (digestRealmNonce != null)
                     authToken = getDigestAuthHeader(username, password, hasCapability(RTSP_CAPABILITY_GET_PARAMETER, capabilities) ? "GET_PARAMETER" : "OPTIONS", uriRtsp, digestRealmNonce.first, digestRealmNonce.second);
                 final String authTokenFinal = authToken;
@@ -557,9 +566,13 @@ public class RtspClient {
 
     @Nullable
     private static String getUriForSetup(@NonNull String uriRtsp, @Nullable Track track) {
-        if (track == null || TextUtils.isEmpty(track.request))
+        if (track == null)
             return null;
-
+        if (track.request == null) {
+            // a=control:trackID=1 is missed
+            Log.w(TAG, "Track request is empty. Skipping it.");
+            track.request = uriRtsp;
+        }
         String uriRtspSetup = uriRtsp;
         if (track.request.startsWith("rtsp://") || track.request.startsWith("rtsps://")) {
             // Absolute URL
@@ -717,6 +730,10 @@ public class RtspClient {
                         listener.onRtspAudioSampleReceived(sample, 0, sample.length, header.getTimestampMsec());
                 }
 
+            // Application
+            } else if (sdpInfo.applicationTrack != null && header.payloadType == sdpInfo.applicationTrack.payloadType) {
+                listener.onRtspApplicationDataReceived(data, 0, header.payloadSize, header.getTimestampMsec());
+
             // Unknown
             } else {
                 // https://www.iana.org/assignments/rtp-parameters/rtp-parameters.xhtml
@@ -870,8 +887,8 @@ public class RtspClient {
             String code = line.substring(0, indexCode);
             try {
                 int statusCode = Integer.parseInt(code);
-                if (debug)
-                    Log.d(TAG_DEBUG, "Status code: " + statusCode);
+//                if (debug)
+//                    Log.d(TAG_DEBUG, "Status code: " + statusCode);
                 return statusCode;
             } catch (NumberFormatException e) {
                 // Does not fulfill standard "RTSP/1.1 200 OK" token
@@ -929,6 +946,12 @@ public class RtspClient {
                     } else if (param.second.startsWith("application")) {
                         currentTrack = new ApplicationTrack();
                         tracks[2] = currentTrack;
+
+                    } else if (param.second.startsWith("text")) {
+                        Log.w(TAG, "Media track 'text' is not supported");
+
+                    } else if (param.second.startsWith("message")) {
+                        Log.w(TAG, "Media track 'message' is not supported");
 
                     } else {
                         currentTrack = null;
@@ -1078,6 +1101,7 @@ public class RtspClient {
         Track[] tracks = getTracksFromDescribeParams(params);
         sdpInfo.videoTrack = ((VideoTrack)tracks[0]);
         sdpInfo.audioTrack = ((AudioTrack)tracks[1]);
+        sdpInfo.applicationTrack = ((ApplicationTrack)tracks[2]);
 
         for (Pair<String, String> param : params) {
             switch (param.first) {
@@ -1512,6 +1536,7 @@ public class RtspClient {
 //      private boolean sendOptionsCommand = true;
         private boolean requestVideo = true;
         private boolean requestAudio = true;
+        private boolean requestApplication = true;
         private boolean debug = false;
         private @Nullable String username = null;
         private @Nullable String password = null;
@@ -1562,6 +1587,12 @@ public class RtspClient {
         @NonNull
         public Builder requestAudio(boolean requestAudio) {
             this.requestAudio = requestAudio;
+            return this;
+        }
+
+        @NonNull
+        public Builder requestApplication(boolean requestApplication) {
+            this.requestApplication = requestApplication;
             return this;
         }
 

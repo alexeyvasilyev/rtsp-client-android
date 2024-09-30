@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".live.LiveFragment">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <include
+            android:id="@+id/llRtspParams"
+            layout="@layout/layout_rtsp_params" />
+
+        <Button
+            android:layout_marginTop="10dp"
+            android:id="@+id/bnStartStop"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginBottom="10dp"
+            android:text="Start" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/tvStatusSurface"
+            android:gravity="end"/>
+
+        <!-- Debug statistics -->
+        <TextView
+            android:id="@+id/tvStatisticsVideo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="30dp"
+            android:padding="5dp"
+            android:textStyle="normal|bold"
+            android:textSize="16sp"/>
+        <TextView
+            android:id="@+id/tvStatisticsAudio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="5dp"
+            android:textStyle="normal|bold"
+            android:textSize="16sp"/>
+        <TextView
+            android:id="@+id/tvStatisticsApplication"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="5dp"
+            android:textStyle="normal|bold"
+            android:textSize="16sp"/>
+
+    </LinearLayout>
+
+</ScrollView>

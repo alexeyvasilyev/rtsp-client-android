@@ -12,6 +12,12 @@
         tools:layout="@layout/fragment_live" />
 
     <fragment
+        android:id="@+id/navigation_raw"
+        android:name="com.alexvas.rtsp.demo.live.RawFragment"
+        android:label="@string/title_live"
+        tools:layout="@layout/fragment_live" />
+
+    <fragment
         android:id="@+id/navigation_logs"
         android:name="info.hannes.logcat.ui.LogcatFragment"
         android:label="@string/title_logs"

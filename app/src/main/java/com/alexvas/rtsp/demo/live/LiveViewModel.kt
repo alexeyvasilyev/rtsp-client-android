@@ -2,7 +2,10 @@ package com.alexvas.rtsp.demo.live
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
+import android.widget.EditText
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 
@@ -18,11 +21,6 @@ private const val LIVE_PARAMS_FILENAME = "live_params"
 
 @SuppressLint("LogNotTimber")
 class LiveViewModel : ViewModel() {
-
-    companion object {
-        private val TAG: String = LiveViewModel::class.java.simpleName
-        private const val DEBUG = false
-    }
 
     val rtspRequest = MutableLiveData<String>().apply {
         value = DEFAULT_RTSP_REQUEST
@@ -45,8 +43,7 @@ class LiveViewModel : ViewModel() {
 //    }
 
     fun loadParams(context: Context) {
-        if (DEBUG)
-            Log.v(TAG, "loadParams()")
+        if (DEBUG) Log.v(TAG, "loadParams()")
         val pref = context.getSharedPreferences(LIVE_PARAMS_FILENAME, Context.MODE_PRIVATE)
         try {
             rtspRequest.setValue(pref.getString(RTSP_REQUEST_KEY, DEFAULT_RTSP_REQUEST))
@@ -67,11 +64,59 @@ class LiveViewModel : ViewModel() {
 
     fun saveParams(context: Context) {
         if (DEBUG) Log.v(TAG, "saveParams()")
-        val editor = context.getSharedPreferences(LIVE_PARAMS_FILENAME, Context.MODE_PRIVATE).edit()
-        editor.putString(RTSP_REQUEST_KEY, rtspRequest.value)
-        editor.putString(RTSP_USERNAME_KEY, rtspUsername.value)
-        editor.putString(RTSP_PASSWORD_KEY, rtspPassword.value)
-        editor.apply()
+        context.getSharedPreferences(LIVE_PARAMS_FILENAME, Context.MODE_PRIVATE).edit().apply {
+            putString(RTSP_REQUEST_KEY, rtspRequest.value)
+            putString(RTSP_USERNAME_KEY, rtspUsername.value)
+            putString(RTSP_PASSWORD_KEY, rtspPassword.value)
+            apply()
+        }
+    }
+
+    fun initEditTexts(etRtspRequest: EditText, etRtspUsername: EditText, etRtspPassword: EditText) {
+        if (DEBUG) Log.v(TAG, "initEditTexts()")
+        etRtspRequest.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+            }
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val text = s.toString()
+                if (text != rtspRequest.value) {
+                    rtspRequest.value = text
+                }
+            }
+        })
+        etRtspUsername.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+            }
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val text = s.toString()
+                if (text != rtspUsername.value) {
+                    rtspUsername.value = text
+                }
+            }
+        })
+        etRtspPassword.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+            }
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val text = s.toString()
+                if (text != rtspPassword.value) {
+                    rtspPassword.value = text
+                }
+            }
+        })
+    }
+
+    companion object {
+        private val TAG: String = LiveViewModel::class.java.simpleName
+        private const val DEBUG = false
+
+
     }
 
 }

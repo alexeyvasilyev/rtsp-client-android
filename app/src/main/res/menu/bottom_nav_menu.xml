@@ -7,6 +7,11 @@
         android:title="@string/title_live" />
 
     <item
+        android:id="@+id/navigation_raw"
+        android:icon="@drawable/ic_cctv_black_24dp"
+        android:title="@string/title_raw" />
+
+    <item
         android:id="@+id/navigation_logs"
         android:icon="@drawable/ic_text_subject_black_24dp"
         android:title="@string/title_logs" />
