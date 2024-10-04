@@ -99,7 +99,7 @@ val uri = Uri.parse("rtsps://10.0.1.3/test.sdp")
 val username = "admin"
 val password = "secret"
 val stopped = new AtomicBoolean(false)
-val sslSocket = NetUtils.createSslSocketAndConnect(uri.getHost(), uri.getPort(), 10000)
+val sslSocket = NetUtils.createSslSocketAndConnect(uri.getHost(), uri.getPort(), 5000)
 
 val rtspClient = RtspClient.Builder(sslSocket, uri.toString(), stopped, rtspClientListener)
     .requestVideo(true)

@@ -307,10 +307,11 @@ class RtspProcessor(
         override fun run() {
             onRtspClientStarted()
             val port = if (uri.port == -1) DEFAULT_RTSP_PORT else uri.port
+            var socket: Socket? = null
             try {
                 if (DEBUG) Log.d(TAG, "Connecting to ${uri.host.toString()}:$port...")
 
-                val socket: Socket = if (uri.scheme?.lowercase() == "rtsps")
+                socket = if (uri.scheme?.lowercase() == "rtsps")
                     NetUtils.createSslSocketAndConnect(uri.host.toString(), port, 5000)
                 else
                     NetUtils.createSocketAndConnect(uri.host.toString(), port, 5000)
@@ -325,10 +326,11 @@ class RtspProcessor(
                     .withCredentials(username, password)
                     .build()
                 rtspClient.execute()
-
-                NetUtils.closeSocket(socket)
             } catch (e: Exception) {
                 e.printStackTrace()
+                uiHandler.post { proxyClientListener.onRtspFailed(e.message) }
+            } finally {
+                NetUtils.closeSocket(socket)
             }
             onRtspClientStopped()
         }

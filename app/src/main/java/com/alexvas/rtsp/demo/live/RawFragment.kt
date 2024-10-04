@@ -14,6 +14,7 @@ import com.alexvas.rtsp.demo.databinding.FragmentRawBinding
 import com.alexvas.rtsp.widget.toHexString
 import com.alexvas.utils.NetUtils
 import kotlinx.coroutines.Runnable
+import java.net.Socket
 import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.atomic.AtomicBoolean
@@ -146,10 +147,11 @@ class RawFragment : Fragment() {
 
     private val threadRunnable = Runnable {
         Log.i(TAG, "Thread started")
+        var socket: Socket? = null
         try {
             val uri = Uri.parse(liveViewModel.rtspRequest.value)
             val port = if (uri.port == -1) DEFAULT_RTSP_PORT else uri.port
-            val socket = NetUtils.createSocketAndConnect(uri.host!!, port, 10000)
+            socket = NetUtils.createSocketAndConnect(uri.host!!, port, 5000)
 
             val rtspClient =
                 RtspClient.Builder(
@@ -169,9 +171,11 @@ class RawFragment : Fragment() {
                     .build()
 
             rtspClient.execute()
-            NetUtils.closeSocket(socket)
         } catch (e: Exception) {
             e.printStackTrace()
+            binding.root.post { rtspClientListener.onRtspFailed(e.message) }
+        } finally {
+            NetUtils.closeSocket(socket)
         }
         Log.i(TAG, "Thread stopped")
     }

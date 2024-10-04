@@ -1,5 +1,0 @@
-project.ext {
-    androidXAnnotationVersion = '1.8.0'
-    androidXMedia3Version = '1.4.1'
-    androidXCameraCoreVersion = '1.4.0-rc02'
-}

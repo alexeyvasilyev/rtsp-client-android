@@ -4,7 +4,6 @@ plugins {
     id 'maven-publish'
 }
 
-apply from: '../constants.gradle'
 apply plugin: 'com.android.library'
 
 project.afterEvaluate {
@@ -39,7 +38,7 @@ android {
 }
 
 dependencies {
-    implementation "androidx.annotation:annotation:$androidXAnnotationVersion"
-    implementation "androidx.media3:media3-exoplayer:$androidXMedia3Version"
-    implementation "androidx.camera:camera-core:$androidXCameraCoreVersion"
+    implementation 'androidx.annotation:annotation:1.8.2'
+    implementation 'androidx.media3:media3-exoplayer:1.4.1'
+    implementation 'androidx.camera:camera-core:1.4.0-rc03'
 }
