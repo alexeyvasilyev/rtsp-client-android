@@ -15,6 +15,8 @@ Unlike [AndroidX Media ExoPlayer](https://github.com/androidx/media) which also 
 - Support for application specific data sent via RTP, e.g. GPS data (`m=application`, see [RFC 4566 sec.5.14](https://datatracker.ietf.org/doc/html/rfc4566#section-5.14))
 - Basic/Digest authentication.
 - Uses Android's [Low-Latency MediaCodec](https://source.android.com/docs/core/media/low-latency-media) by default if available.
+- Ability to select hardware or software video decoder.
+- Video rotation (90, 180, 270 degrees). 
 - Android min API 24.
 
 ## Upcoming features:
