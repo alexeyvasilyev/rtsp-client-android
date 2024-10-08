@@ -17,6 +17,9 @@ Unlike [AndroidX Media ExoPlayer](https://github.com/androidx/media) which also 
 - Uses Android's [Low-Latency MediaCodec](https://source.android.com/docs/core/media/low-latency-media) by default if available.
 - Android min API 24.
 
+## Upcoming features:
+- PCM and G.711 aLaw/uLaw audio streams.
+- 2-w talk.
 
 ## Permissions:
 
