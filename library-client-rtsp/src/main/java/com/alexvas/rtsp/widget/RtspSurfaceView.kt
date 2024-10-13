@@ -9,7 +9,6 @@ import android.view.SurfaceView
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.container.NalUnitUtil
-import com.alexvas.rtsp.codec.VideoDecodeThread
 import com.alexvas.rtsp.codec.VideoDecodeThread.DecoderType
 import com.alexvas.rtsp.codec.VideoDecoderSurfaceThread
 import com.alexvas.rtsp.widget.RtspProcessor.Statistics
@@ -53,12 +52,6 @@ open class RtspSurfaceView: SurfaceView {
     var debug: Boolean
         get() = rtspProcessor.debug
         set(value) { rtspProcessor.debug = value }
-
-    var onApplicationDataReceived: ((
-        data: ByteArray,
-        offset: Int,
-        length: Int
-    ) -> VideoDecodeThread)? = null
 
     private val surfaceCallback = object: SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder) {

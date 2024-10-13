@@ -182,6 +182,12 @@ public class RtspClient {
     public abstract static class Track {
         public String request;
         public int payloadType;
+
+        @NonNull
+        @Override
+        public String toString() {
+            return "Track{request='" + request + "', payloadType=" + payloadType + '}';
+        }
     }
 
     public static final int VIDEO_CODEC_H264 = 0;
@@ -235,7 +241,7 @@ public class RtspClient {
     }
 
     private final @NonNull Socket rtspSocket;
-    private final @NonNull String uriRtsp;
+    private @NonNull String uriRtsp;
     private final @NonNull AtomicBoolean exitFlag;
     private final @NonNull RtspClientListener listener;
 
@@ -369,6 +375,14 @@ public class RtspClient {
             if (DEBUG)
                 Log.i(TAG, "DESCRIBE status: " + status);
             checkStatusCode(status);
+
+            String contentBaseUri = getHeaderContentBase(headers);
+            if (contentBaseUri != null) {
+                if (debug)
+                    Log.i(TAG_DEBUG, "RTSP URI changed to '" + uriRtsp + "'");
+                uriRtsp = contentBaseUri;
+            }
+
             int contentLength = getHeaderContentLength(headers);
             if (contentLength > 0) {
                 String content = readContentAsText(inputStream, contentLength);
@@ -413,7 +427,7 @@ public class RtspClient {
                     case 0 -> track = requestVideo ? sdpInfo.videoTrack : null;
                     case 1 -> track = requestAudio ? sdpInfo.audioTrack : null;
                     default -> track = requestApplication ? sdpInfo.applicationTrack : null;
-                };
+                }
                 if (track != null) {
                     String uriRtspSetup = getUriForSetup(uriRtsp, track);
                     if (uriRtspSetup == null) {
@@ -566,6 +580,7 @@ public class RtspClient {
 
     @Nullable
     private static String getUriForSetup(@NonNull String uriRtsp, @Nullable Track track) {
+        if (DEBUG) Log.v(TAG, "getUriForSetup(uriRtsp='" + uriRtsp + "', track=" + track + ")");
         if (track == null)
             return null;
         if (track.request == null) {
@@ -574,12 +589,12 @@ public class RtspClient {
             track.request = uriRtsp;
         }
         String uriRtspSetup = uriRtsp;
+        // Absolute URL
         if (track.request.startsWith("rtsp://") || track.request.startsWith("rtsps://")) {
-            // Absolute URL
             uriRtspSetup = track.request;
+        // Relative URL
         } else {
-            // Relative URL
-            if (!track.request.startsWith("/")) {
+            if (!track.request.startsWith("/") && !uriRtspSetup.endsWith("/")) {
                 track.request = "/" + track.request;
             }
             uriRtspSetup += track.request;
@@ -911,7 +926,7 @@ public class RtspClient {
             if (CRLF.equals(line)) {
                 return headers;
             } else {
-                String[] pairs = TextUtils.split(line, ":");
+                String[] pairs = line.split(":", 2);
                 if (pairs.length == 2) {
                     headers.add(Pair.create(pairs[0].trim(), pairs[1].trim()));
                 }
@@ -1230,6 +1245,19 @@ public class RtspClient {
                 }
             }
         }
+    }
+
+    /**
+     * Search for header "Content-Base: rtsp://example.com/stream/"
+     * and return "rtsp://example.com/stream/"
+     */
+    @Nullable
+    private static String getHeaderContentBase(@NonNull ArrayList<Pair<String, String>> headers) {
+        String contentBase = getHeader(headers, "content-base");
+        if (!TextUtils.isEmpty(contentBase)) {
+            return contentBase;
+        }
+        return null;
     }
 
     private static int getHeaderContentLength(@NonNull ArrayList<Pair<String, String>> headers) {
