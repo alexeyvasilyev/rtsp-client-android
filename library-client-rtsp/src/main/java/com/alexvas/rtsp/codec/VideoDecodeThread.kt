@@ -262,7 +262,7 @@ abstract class VideoDecodeThread (
                 try {
                     createVideoDecoderAndStart(DecoderType.SOFTWARE)
                 } catch (e2: Throwable) {
-                    Log.e(TAG, "Failed to start video software decoder. Exiting...", e)
+                    Log.e(TAG, "Failed to start video software decoder. Exiting...", e2)
                     // Unexpected behavior
                     videoDecoderListener.onVideoDecoderFailed("Cannot initialize video decoder for mime type '$mimeType'")
                     return
