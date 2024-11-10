@@ -16,6 +16,7 @@ Unlike [AndroidX Media ExoPlayer](https://github.com/androidx/media) which also 
 - Basic/Digest authentication.
 - Uses Android's [Low-Latency MediaCodec](https://source.android.com/docs/core/media/low-latency-media) by default if available.
 - Ability to select hardware or software video decoder.
+- Ability to [rewrite SPS frame](https://github.com/alexeyvasilyev/rtsp-client-android/blob/dbea741548307b1b0e1ead0ccc6294e811fbf6fd/library-client-rtsp/src/main/java/com/alexvas/rtsp/widget/RtspProcessor.kt#L106C9-L106C55) with low-latency parameters (EXPERIMENTAL).
 - Video rotation (90, 180, 270 degrees). 
 - Android min API 24.
 
@@ -134,3 +135,5 @@ For the same profile/level and resolution (but different cameras) the latency in
 
 To decrease latency be sure you use the lowest possible H.264 video stream profile and level (enable `debug` in the library and check SPS frame params `profile_idc` and `level_idc` in the log). `Baseline profile` should have the lowest possible decoder latency.
 Check `max_num_reorder_frames` param as well. For best latency it's value should be `0`.
+
+You can also try to use [experimentalUpdateSpsFrameWithLowLatencyParams](https://github.com/alexeyvasilyev/rtsp-client-android/blob/dbea741548307b1b0e1ead0ccc6294e811fbf6fd/library-client-rtsp/src/main/java/com/alexvas/rtsp/widget/RtspProcessor.kt#L106C9-L106C55) library feature which rewrites config frame on runtime with low-latency parameters.
