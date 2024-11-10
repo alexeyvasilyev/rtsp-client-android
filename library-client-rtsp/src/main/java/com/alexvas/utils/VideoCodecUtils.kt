@@ -12,6 +12,9 @@ object VideoCodecUtils {
 
     private val TAG = VideoCodecUtils::class.java.simpleName
 
+    /** Max possible NAL SPS size in bytes */
+    const val MAX_NAL_SPS_SIZE:     Int = 500
+
     const val NAL_SLICE:            Byte = 1
     const val NAL_DPA:              Byte = 2
     const val NAL_DPB:              Byte = 3

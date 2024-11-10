@@ -49,6 +49,10 @@ open class RtspSurfaceView: SurfaceView {
         get() = rtspProcessor.videoDecoderType
         set(value) { rtspProcessor.videoDecoderType = value }
 
+    var experimentalUpdateSpsFrameWithLowLatencyParams: Boolean
+        get() = rtspProcessor.experimentalUpdateSpsFrameWithLowLatencyParams
+        set(value) { rtspProcessor.experimentalUpdateSpsFrameWithLowLatencyParams = value }
+
     var debug: Boolean
         get() = rtspProcessor.debug
         set(value) { rtspProcessor.debug = value }

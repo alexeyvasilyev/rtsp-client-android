@@ -242,6 +242,10 @@ class LiveFragment : Fragment() {
                 binding.llRtspParams.etRtspPassword.setText(it)
         }
 
+        binding.cbExperimentalRewriteSps.setOnCheckedChangeListener { _, isChecked ->
+            binding.svVideoSurface.experimentalUpdateSpsFrameWithLowLatencyParams = isChecked
+        }
+
         binding.bnRotate0.setOnClickListener {
             binding.svVideoSurface.videoRotation = 0
             binding.ivVideoImage.videoRotation = 0

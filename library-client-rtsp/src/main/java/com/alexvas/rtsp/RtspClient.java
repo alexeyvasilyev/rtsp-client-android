@@ -676,14 +676,14 @@ public class RtspClient {
                         case VideoCodecUtils.NAL_SPS:
                             nalUnitSps = nalUnit;
                             // Looks like there is NAL_IDR_SLICE as well. Send it now.
-                            if (nalUnit.length > 100)
+                            if (nalUnit.length > VideoCodecUtils.MAX_NAL_SPS_SIZE)
                                 listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, header.getTimestampMsec());
                             break;
 
                         case VideoCodecUtils.NAL_PPS:
                             nalUnitPps = nalUnit;
                             // Looks like there is NAL_IDR_SLICE as well. Send it now.
-                            if (nalUnit.length > 100)
+                            if (nalUnit.length > VideoCodecUtils.MAX_NAL_SPS_SIZE)
                                 listener.onRtspVideoNalUnitReceived(nalUnit, 0, nalUnit.length, header.getTimestampMsec());
                             break;
 

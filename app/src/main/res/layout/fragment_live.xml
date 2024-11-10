@@ -17,6 +17,14 @@
             android:id="@+id/llRtspParams"
             layout="@layout/layout_rtsp_params"/>
 
+        <CheckBox
+            android:id="@+id/cbExperimentalRewriteSps"
+            android:text="Rewrite SPS frame w/ low-latency (EXPERIMENTAL)"
+            android:checked="false"
+            android:layout_margin="5dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
         <Button
             android:layout_marginTop="10dp"
             android:id="@+id/bnStartStopSurface"

@@ -20,8 +20,11 @@ import com.alexvas.rtsp.codec.VideoDecodeThread.VideoDecoderListener
 import com.alexvas.rtsp.codec.VideoFrameQueue
 import com.alexvas.utils.NetUtils
 import com.alexvas.utils.VideoCodecUtils
+import org.jcodec.codecs.h264.io.model.SeqParameterSet
 import java.net.Socket
+import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.compareTo
 import kotlin.math.min
 
 class RtspProcessor(
@@ -93,6 +96,15 @@ class RtspProcessor(
      * Requested video decoder type.
      */
     var videoDecoderType = DecoderType.HARDWARE
+
+    /**
+     * Try to modify SPS frame coming from camera with low-latency parameters to decrease video
+     * decoding latency.
+     * If SPS frame param num_ref_frames is 1 or more (e.g. for Hualai cameras), set it
+     * to 0. That should decrease decoder latency from 800 msec to 100 msec on some hardware
+     * decoders.
+     */
+    var experimentalUpdateSpsFrameWithLowLatencyParams = false
 
     /**
      * Status listener for getting RTSP event updates.
@@ -192,16 +204,30 @@ class RtspProcessor(
         private var framesPerGop = 0
 
         override fun onRtspVideoNalUnitReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
-            if (DEBUG) Log.v(TAG, "onRtspVideoNalUnitReceived(length=$length, timestamp=$timestamp)")
+            if (DEBUG) Log.v(TAG, "onRtspVideoNalUnitReceived(data.size=${data.size}, length=$length, timestamp=$timestamp)")
 
             val isH265 = videoMimeType == MediaFormat.MIMETYPE_VIDEO_HEVC
             // Search for NAL_IDR_SLICE within first 1KB maximum
             val isKeyframe = VideoCodecUtils.isAnyKeyFrame(data, offset, min(length, 1000), isH265)
+
+            var videoFrame = FrameQueue.VideoFrame(
+                VideoCodecType.H264,
+                isKeyframe,
+                data,
+                offset,
+                length,
+                timestamp,
+                capturedTimestampMs = System.currentTimeMillis()
+            )
+            if (isKeyframe && experimentalUpdateSpsFrameWithLowLatencyParams) {
+                videoFrame = getNewLowLatencyFrameFromKeyFrame(videoFrame)
+            }
+
             if (debug) {
-                val nals = ArrayList<VideoCodecUtils.NalUnit>()
-                VideoCodecUtils.getNalUnits(data, offset, length, nals, isH265)
+                nalUnitsFound.clear()
+                VideoCodecUtils.getNalUnits(videoFrame.data, videoFrame.offset, videoFrame.length, nalUnitsFound, isH265)
                 var b = StringBuilder()
-                for (nal in nals) {
+                for (nal in nalUnitsFound) {
                     b
                     .append(if (isH265)
                             VideoCodecUtils.getH265NalUnitTypeString(nal.type)
@@ -215,14 +241,14 @@ class RtspProcessor(
                 @SuppressLint("UnsafeOptInUsageError")
                 if (isKeyframe) {
                     val sps = VideoCodecUtils.getSpsNalUnitFromArray(
-                        data,
-                        offset,
+                        videoFrame.data,
+                        videoFrame.offset,
                         // Check only first 100 bytes maximum. That's enough for finding SPS NAL unit.
-                        Integer.min(length, 100),
+                        Integer.min(videoFrame.length, VideoCodecUtils.MAX_NAL_SPS_SIZE),
                         isH265
                     )
                     Log.d(TAG,
-                        "\tKey frame received ($length bytes, ts=$timestamp," +
+                        "\tKey frame received (${videoFrame.length} bytes, ts=$timestamp," +
                         " ${sps?.width}x${sps?.height}," +
                         " GoP=$framesPerGop," +
                         " profile=${sps?.profileIdc}, level=${sps?.levelIdc})")
@@ -231,18 +257,13 @@ class RtspProcessor(
                     framesPerGop++
                 }
             }
-            videoFrameQueue.push(
-                FrameQueue.VideoFrame(
-                    VideoCodecType.H264,
-                    isKeyframe,
-                    data,
-                    offset,
-                    length,
-                    timestamp,
-                    capturedTimestampMs = System.currentTimeMillis()
-                )
-            )
-            dataListener?.onRtspDataVideoNalUnitReceived(data, offset, length, timestamp)
+
+            videoFrameQueue.push(videoFrame)
+            dataListener?.onRtspDataVideoNalUnitReceived(
+                videoFrame.data,
+                videoFrame.offset,
+                videoFrame.length,
+                timestamp)
         }
 
         override fun onRtspAudioSampleReceived(data: ByteArray, offset: Int, length: Int, timestamp: Long) {
@@ -437,6 +458,104 @@ class RtspProcessor(
         videoDecodeThread = null
         audioDecodeThread?.stopAsync()
         audioDecodeThread = null
+    }
+
+// Cached values
+    private val nalUnitsFound = ArrayList<VideoCodecUtils.NalUnit>()
+    private val spsBufferReadFrame = ByteBuffer.allocate(VideoCodecUtils.MAX_NAL_SPS_SIZE)
+    private val spsBufferWriteFrame = ByteBuffer.allocate(VideoCodecUtils.MAX_NAL_SPS_SIZE)
+
+    /**
+     * Try to get a new frame keyframe (SPS+PPS+IDR) with low latency modified SPS frame.
+     * If modification failed, original frame will be returned.
+     * Inspired by https://webrtc.googlesource.com/src/+/refs/heads/main/common_video/h264/sps_vui_rewriter.cc#400
+     */
+    private fun getNewLowLatencyFrameFromKeyFrame(frame: FrameQueue.VideoFrame): FrameQueue.VideoFrame {
+        try {
+            // Support only H264 for now
+            if (frame.codecType == VideoCodecType.H265)
+                return frame
+
+            nalUnitsFound.clear()
+            VideoCodecUtils.getNalUnits(frame.data, frame.offset, frame.length, nalUnitsFound, isH265 = false)
+
+            val oldSpsNalUnit = nalUnitsFound.firstOrNull { it.type == VideoCodecUtils.NAL_SPS }
+
+            // SPS frame not found. Return original frame.
+            if (oldSpsNalUnit == null)
+                return frame
+
+            spsBufferReadFrame.apply {
+                rewind()
+                put(frame.data, oldSpsNalUnit.offset + 5,
+                    Integer.min(oldSpsNalUnit.length, VideoCodecUtils.MAX_NAL_SPS_SIZE)
+                )
+                rewind()
+            }
+            // Read SPS frame
+            val spsSet = SeqParameterSet.read(spsBufferReadFrame)
+
+            // SPS frame already has num_ref_frames set to 0. Return original frame.
+            if (spsSet.numRefFrames == 0)
+                return frame
+
+            // Change SPS frame
+            if (debug)
+                Log.d(TAG, "Changed SPS num_ref_frames ${spsSet.numRefFrames} -> 0")
+            spsSet.numRefFrames = 0
+
+            // Write SPS frame
+            spsBufferWriteFrame.rewind()
+            spsSet.write(spsBufferWriteFrame)
+
+            val newSpsNalUnitSize = spsBufferWriteFrame.position()
+
+            if (oldSpsNalUnit.length > -1) {
+                val newSize = frame.length - oldSpsNalUnit.length + newSpsNalUnitSize
+                val newData = ByteArray(newSize + 5)
+                var newDataOffset = 0
+
+                for (nalUnit in nalUnitsFound) {
+                    when (nalUnit.type) {
+                        VideoCodecUtils.NAL_SPS -> {
+                            // Write NAL header + SPS frame type
+                            val b = byteArrayOf(0x00, 0x00, 0x00, 0x01, 0x27)
+                            b.copyInto(newData, newDataOffset, 0, b.size)
+                            newDataOffset += b.size
+                            // Write SPS frame body
+                            spsBufferWriteFrame.apply {
+                                rewind()
+                                get(newData, newDataOffset, newSpsNalUnitSize)
+                            }
+                            newDataOffset += newSpsNalUnitSize
+                        }
+
+                        else -> {
+                            frame.data.copyInto(
+                                newData,
+                                newDataOffset,
+                                nalUnit.offset,
+                                nalUnit.offset + nalUnit.length
+                            )
+                            newDataOffset += nalUnit.length
+                        }
+                    }
+                }
+                // Create SPS+PPS+IDR frame with newly modified SPS frame data
+                return FrameQueue.VideoFrame(
+                    frame.codecType,
+                    frame.isKeyframe,
+                    newData,
+                    0,
+                    newData.size,
+                    frame.timestampMs,
+                    frame.capturedTimestampMs
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to create low-latency keyframe", e)
+        }
+        return frame
     }
 
     private fun getUriName(): String {
