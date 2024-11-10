@@ -100,9 +100,8 @@ class RtspProcessor(
     /**
      * Try to modify SPS frame coming from camera with low-latency parameters to decrease video
      * decoding latency.
-     * If SPS frame param num_ref_frames is 1 or more (e.g. for Hualai cameras), set it
-     * to 0. That should decrease decoder latency from 800 msec to 100 msec on some hardware
-     * decoders.
+     * If SPS frame param num_ref_frames is equal to 1 or more, set it to 0. That should decrease
+     * decoder latency by 2x times on some hardware decoders.
      */
     var experimentalUpdateSpsFrameWithLowLatencyParams = false
 
