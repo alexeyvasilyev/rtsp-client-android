@@ -21,6 +21,7 @@ import com.alexvas.rtsp.codec.VideoFrameQueue
 import com.alexvas.utils.NetUtils
 import com.alexvas.utils.VideoCodecUtils
 import org.jcodec.codecs.h264.io.model.SeqParameterSet
+import org.jcodec.codecs.h264.io.model.VUIParameters
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
@@ -494,14 +495,30 @@ class RtspProcessor(
             // Read SPS frame
             val spsSet = SeqParameterSet.read(spsBufferReadFrame)
 
-            // SPS frame already has num_ref_frames set to 0. Return original frame.
-            if (spsSet.numRefFrames == 0)
-                return frame
-
-            // Change SPS frame
-            if (debug)
-                Log.d(TAG, "Changed SPS num_ref_frames ${spsSet.numRefFrames} -> 0")
-            spsSet.numRefFrames = 0
+            // adding VUI might decrease latency for some streams, if max_dec_frame_buffering is set properly
+            // https://community.intel.com/t5/Media-Intel-oneAPI-Video/h-264-decoder-gives-two-frames-latency-while-decoding-a-stream/td-p/1099694
+            // https://github.com/Consti10/LiveVideo10ms/blob/master/VideoCore/src/main/cpp/NALU/H26X.hpp
+            fun modifyVui() {
+//                spsSet.vuiParams = VUIParameters()
+                spsSet.vuiParams.apply {
+//                    videoSignalTypePresentFlag = true
+//                    videoFormat = 5
+//                    colourDescriptionPresentFlag = true
+//                    matrixCoefficients = 5
+//                    timingInfoPresentFlag = true
+//                    numUnitsInTick = 1
+//                    timeScale = 120
+//                    fixedFrameRateFlag = true
+                    bitstreamRestriction = VUIParameters.BitstreamRestriction().apply {
+//                        motionVectorsOverPicBoundariesFlag = true
+//                        log2MaxMvLengthHorizontal = 16
+//                        log2MaxMvLengthVertical = 16
+                        maxDecFrameBuffering = 1
+                        numReorderFrames = 0
+                    }
+                }
+            }
+            modifyVui()
 
             // Write SPS frame
             spsBufferWriteFrame.rewind()
