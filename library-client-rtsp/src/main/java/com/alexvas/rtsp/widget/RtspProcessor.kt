@@ -25,7 +25,6 @@ import org.jcodec.codecs.h264.io.model.VUIParameters
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.compareTo
 import kotlin.math.min
 
 class RtspProcessor(

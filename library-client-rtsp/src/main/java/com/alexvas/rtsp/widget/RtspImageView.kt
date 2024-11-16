@@ -9,6 +9,7 @@ import android.widget.ImageView
 import com.alexvas.rtsp.codec.VideoDecodeThread
 import com.alexvas.rtsp.codec.VideoDecoderBitmapThread
 import com.alexvas.rtsp.widget.RtspProcessor.Statistics
+import com.limelight.binding.video.MediaCodecHelper
 
 /**
  * Low latency RTSP stream playback on image view (bitmap).
@@ -72,6 +73,7 @@ class RtspImageView : ImageView {
 
     private fun initView(context: Context, attrs: AttributeSet?, defStyleAttr: Int) {
         if (DEBUG) Log.v(TAG, "initView()")
+        MediaCodecHelper.initialize(context, /*glRenderer*/ "")
     }
 
     fun init(uri: Uri, username: String?, password: String?, userAgent: String?) {

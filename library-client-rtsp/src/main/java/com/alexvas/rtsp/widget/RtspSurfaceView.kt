@@ -12,6 +12,7 @@ import androidx.media3.container.NalUnitUtil
 import com.alexvas.rtsp.codec.VideoDecodeThread.DecoderType
 import com.alexvas.rtsp.codec.VideoDecoderSurfaceThread
 import com.alexvas.rtsp.widget.RtspProcessor.Statistics
+import com.limelight.binding.video.MediaCodecHelper
 
 /**
  * Low latency RTSP stream playback on surface view.
@@ -88,6 +89,7 @@ open class RtspSurfaceView: SurfaceView {
 
     private fun initView(context: Context, attrs: AttributeSet?, defStyleAttr: Int) {
         if (DEBUG) Log.v(TAG, "initView()")
+        MediaCodecHelper.initialize(context, /*glRenderer*/ "")
         holder.addCallback(surfaceCallback)
     }
 

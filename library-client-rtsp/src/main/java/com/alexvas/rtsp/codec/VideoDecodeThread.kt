@@ -12,6 +12,7 @@ import android.util.Log
 import com.alexvas.utils.MediaCodecUtils
 import com.alexvas.utils.capabilitiesToString
 import androidx.media3.common.util.Util
+import com.limelight.binding.video.MediaCodecHelper
 import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -145,11 +146,15 @@ abstract class VideoDecodeThread (
         else
             Log.i(TAG, "Configuring surface ${safeWidthHeight.first}x${safeWidthHeight.second} w/ '$mimeType'")
         format.setInteger(MediaFormat.KEY_ROTATION, rotation)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // format.setFeatureEnabled(android.media.MediaCodecInfo.CodecCapabilities.FEATURE_LowLatency, true)
-            // Request low-latency for the decoder. Not all of the decoders support that.
-            format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
-        }
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+//            // format.setFeatureEnabled(android.media.MediaCodecInfo.CodecCapabilities.FEATURE_LowLatency, true)
+//            // Request low-latency for the decoder. Not all of the decoders support that.
+//            format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
+//        }
+
+        val succeeded = MediaCodecHelper.setDecoderLowLatencyOptions(format, decoder.codecInfo, 1)
+        Log.i(TAG, "Low-latency: $succeeded")
+
         return format
     }
 
@@ -391,7 +396,7 @@ abstract class VideoDecodeThread (
                             if (DEBUG) Log.d(TAG, "OutputBuffer BUFFER_FLAG_END_OF_STREAM")
                             break
                         }
-                    } catch (ignored: InterruptedException) {
+                    } catch (_: InterruptedException) {
                     } catch (e: IllegalStateException) {
                         // Restarting decoder in software mode
                         Log.e(TAG, "${e.message}", e)
