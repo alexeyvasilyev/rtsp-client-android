@@ -19,19 +19,18 @@
 
         <CheckBox
             android:id="@+id/cbExperimentalRewriteSps"
-            android:text="Rewrite SPS frame w/ low-latency (EXPERIMENTAL)"
+            android:text="Rewrite SPS frames w/ low-latency params (EXPERIMENTAL)"
             android:checked="false"
             android:layout_margin="5dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
 
         <Button
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="40dp"
             android:id="@+id/bnStartStopSurface"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:layout_marginBottom="10dp"
             android:text="Start" />
 
 
@@ -42,32 +41,55 @@
             android:layout_height="match_parent"
             android:paddingBottom="5dp"
             android:text="RtspSurfaceView:"/>
-        <FrameLayout
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/csVideoSurface"
             android:layout_width="match_parent"
-            android:layout_height="300dp"
+            android:layout_height="match_parent"
             android:animateLayoutChanges="true">
             <com.alexvas.rtsp.widget.RtspSurfaceView
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:id="@+id/svVideoSurface" />
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:id="@+id/svVideoSurface"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintDimensionRatio="16:9"/>
             <View
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
                 android:background="@android:color/black"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
                 android:id="@+id/vShutterSurface" />
             <ProgressBar
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:visibility="gone"
-                android:id="@+id/pbLoadingSurface"/>
-        </FrameLayout>
+                android:id="@+id/pbLoadingSurface"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"/>
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
+        <!-- Debug statistics -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:id="@+id/tvStatistics"
+            android:textSize="12sp"/>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="5dp"
+            android:paddingStart="5dp"
+            android:paddingEnd="5dp"
             android:orientation="horizontal"
             android:gravity="center_vertical">
             <Button
@@ -76,7 +98,7 @@
                 style="@style/Widget.Material3.Button.TextButton.Icon"
                 android:id="@+id/bnSnapshotSurface"
                 android:enabled="false"
-                android:text="Photo"
+                android:text="Snapshot"
                 app:icon="@drawable/ic_camera_black_24dp"/>
             <TextView
                 android:layout_width="match_parent"
@@ -89,12 +111,11 @@
         <!-- RtspImageView -->
 
         <Button
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="30dp"
             android:id="@+id/bnStartStopImage"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:layout_marginBottom="10dp"
             android:text="Start" />
 
         <TextView
@@ -102,27 +123,42 @@
             android:layout_height="match_parent"
             android:paddingBottom="5dp"
             android:text="RtspImageView:"/>
-        <FrameLayout
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/csVideoImage"
             android:layout_width="match_parent"
-            android:layout_height="300dp"
+            android:layout_height="match_parent"
             android:animateLayoutChanges="true">
             <com.alexvas.rtsp.widget.RtspImageView
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
                 android:scaleType="fitXY"
-                android:id="@+id/ivVideoImage" />
+                android:id="@+id/ivVideoImage"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintDimensionRatio="16:9"/>
             <View
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
                 android:background="@android:color/black"
-                android:id="@+id/vShutterImage" />
+                android:id="@+id/vShutterImage"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent" />
             <ProgressBar
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:visibility="gone"
-                android:id="@+id/pbLoadingImage"/>
-        </FrameLayout>
+                android:id="@+id/pbLoadingImage"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -220,15 +256,6 @@
                     android:text="270" />
             </com.google.android.material.button.MaterialButtonToggleGroup>
         </LinearLayout>
-
-        <!-- Debug statistics -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:layout_margin="6dp"
-            android:id="@+id/tvStatistics"
-            android:textSize="12sp"/>
 
     </LinearLayout>
 

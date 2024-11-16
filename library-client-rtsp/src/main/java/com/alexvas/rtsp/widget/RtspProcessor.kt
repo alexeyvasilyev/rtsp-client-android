@@ -371,6 +371,7 @@ class RtspProcessor(
 
         override fun onVideoDecoderFormatChanged(width: Int, height: Int) {
             if (DEBUG) Log.v(TAG, "onVideoDecoderFormatChanged(width=$width, height=$height)")
+            statusListener?.onRtspFrameSizeChanged(width, height)
         }
 
         override fun onVideoDecoderFirstFrameRendered() {

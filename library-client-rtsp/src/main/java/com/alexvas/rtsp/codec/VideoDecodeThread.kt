@@ -12,7 +12,9 @@ import android.util.Log
 import com.alexvas.utils.MediaCodecUtils
 import com.alexvas.utils.capabilitiesToString
 import androidx.media3.common.util.Util
+import com.alexvas.utils.VideoCodecUtils
 import com.limelight.binding.video.MediaCodecHelper
+import java.lang.Integer.min
 import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -276,6 +278,8 @@ abstract class VideoDecodeThread (
             val bufferInfo = MediaCodec.BufferInfo()
 
             try {
+                var widthHeightFromStream: Pair<Int, Int>? = null
+
                 // Map for calculating decoder rendering latency.
                 // key - original frame timestamp, value - timestamp when frame was added to the map
                 val keyframesTimestamps = HashMap<Long, Long>()
@@ -323,7 +327,26 @@ abstract class VideoDecodeThread (
                                     Log.i(TAG, "\tFrame queued (${l - frameQueuedMsec}) ${if (frame.isKeyframe) "key frame" else ""}")
                                     frameQueuedMsec = l
                                 }
-                                decoder.queueInputBuffer(inIndex, frame.offset, frame.length, frame.timestampMs, 0)
+                                val flags = if (frame.isKeyframe)
+                                    (MediaCodec.BUFFER_FLAG_KEY_FRAME /*or MediaCodec.BUFFER_FLAG_CODEC_CONFIG*/) else 0
+                                decoder.queueInputBuffer(inIndex, frame.offset, frame.length, frame.timestampMs, flags)
+
+                                if (frame.isKeyframe) {
+                                    // Obtain width and height from stream
+                                    widthHeightFromStream = try {
+                                        VideoCodecUtils.getWidthHeightFromArray(
+                                            frame.data,
+                                            frame.offset,
+                                            // Check only first 100 bytes maximum. That's enough for finding SPS NAL unit.
+                                            min(frame.length, VideoCodecUtils.MAX_NAL_SPS_SIZE),
+                                            isH265 = frame.codecType == VideoCodecType.H265
+                                        )
+                                    } catch (_: Exception) {
+//                                      Log.e(TAG, "Failed to parse width/height from SPS frame. SPS frame seems to be corrupted.", e)
+                                        null
+                                    }
+//                                  Log.i(TAG, "width/height: ${widthHeightFromStream?.first}x${widthHeightFromStream?.second}")
+                                }
                             }
                         }
 
@@ -341,7 +364,13 @@ abstract class VideoDecodeThread (
                                 // Resolution changed
                                 MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED, MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                                     Log.d(TAG, "Decoder format changed: ${decoder.outputFormat}")
-                                    val widthHeight = getWidthHeight(decoder.outputFormat)
+                                    // Decoder can contain different resolution (it can make downsampling).
+                                    // If resolution successfully obtained from SPS frame, use it.
+                                    val widthHeightFromDecoder = getWidthHeight(decoder.outputFormat)
+                                    val widthHeight = widthHeightFromStream ?: widthHeightFromDecoder
+                                    Log.i(TAG, "Video decoder resolution: ${widthHeightFromDecoder.first}x${widthHeightFromDecoder.second}, stream resolution: ${widthHeightFromStream?.first}x${widthHeightFromStream?.second}")
+
+//                                    val widthHeightFromDecoder = getWidthHeight(decoder.outputFormat)
                                     val rotation = if (decoder.outputFormat.containsKey(MediaFormat.KEY_ROTATION)) {
                                         decoder.outputFormat.getInteger(MediaFormat.KEY_ROTATION)
                                     } else {

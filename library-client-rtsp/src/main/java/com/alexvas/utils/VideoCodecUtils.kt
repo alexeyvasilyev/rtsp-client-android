@@ -274,14 +274,14 @@ object VideoCodecUtils {
         return null
     }
 
-//    @SuppressLint("UnsafeOptInUsageError")
-//    fun getWidthHeightFromArray(src: ByteArray, offset: Int, length: Int): Pair<Int, Int>? {
-//        val sps = getSpsNalUnitFromArray(src, offset, length)
-//        sps?.let {
-//            return Pair(sps.width, sps.height)
-//        }
-//        return null
-//    }
+    @SuppressLint("UnsafeOptInUsageError")
+    fun getWidthHeightFromArray(src: ByteArray, offset: Int, length: Int, isH265: Boolean): Pair<Int, Int>? {
+        val sps = getSpsNalUnitFromArray(src, offset, length, isH265)
+        sps?.let {
+            return Pair(sps.width, sps.height)
+        }
+        return null
+    }
 
 
 //    private fun isH265IRAP(nalUnitType: Byte): Boolean {

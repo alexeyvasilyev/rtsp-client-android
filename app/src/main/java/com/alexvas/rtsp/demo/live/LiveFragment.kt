@@ -9,6 +9,7 @@ import android.os.HandlerThread
 import android.util.Log
 import android.view.*
 import android.widget.Toast
+import androidx.constraintlayout.widget.ConstraintSet
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.alexvas.rtsp.codec.VideoDecodeThread
@@ -29,6 +30,7 @@ class LiveFragment : Fragment() {
     private lateinit var liveViewModel: LiveViewModel
 
     private var statisticsTimer: Timer? = null
+    private var svVideoSurfaceResolution = Pair(0, 0)
 
     private val rtspStatusSurfaceListener = object: RtspStatusListener {
         override fun onRtspStatusConnecting() {
@@ -37,13 +39,15 @@ class LiveFragment : Fragment() {
                 tvStatusSurface.text = "RTSP connecting"
                 pbLoadingSurface.visibility = View.VISIBLE
                 vShutterSurface.visibility = View.VISIBLE
-                llRtspParams.etRtspRequest.isEnabled = false
-                llRtspParams.etRtspUsername.isEnabled = false
-                llRtspParams.etRtspPassword.isEnabled = false
-                llRtspParams.cbVideo.isEnabled = false
-                llRtspParams.cbAudio.isEnabled = false
-                llRtspParams.cbApplication.isEnabled = false
-                llRtspParams.cbDebug.isEnabled = false
+                llRtspParams.apply {
+                    etRtspRequest.isEnabled = false
+                    etRtspUsername.isEnabled = false
+                    etRtspPassword.isEnabled = false
+                    cbVideo.isEnabled = false
+                    cbAudio.isEnabled = false
+                    cbApplication.isEnabled = false
+                    cbDebug.isEnabled = false
+                }
                 tgRotation.isEnabled = false
             }
         }
@@ -53,7 +57,6 @@ class LiveFragment : Fragment() {
             binding.apply {
                 tvStatusSurface.text = "RTSP connected"
                 bnStartStopSurface.text = "Stop RTSP"
-                pbLoadingSurface.visibility = View.GONE
             }
             setKeepScreenOn(true)
         }
@@ -73,13 +76,15 @@ class LiveFragment : Fragment() {
                 pbLoadingSurface.visibility = View.GONE
                 vShutterSurface.visibility = View.VISIBLE
                 pbLoadingSurface.isEnabled = false
-                llRtspParams.cbVideo.isEnabled = true
-                llRtspParams.cbAudio.isEnabled = true
-                llRtspParams.cbApplication.isEnabled = true
-                llRtspParams.cbDebug.isEnabled = true
-                llRtspParams.etRtspRequest.isEnabled = true
-                llRtspParams.etRtspUsername.isEnabled = true
-                llRtspParams.etRtspPassword.isEnabled = true
+                llRtspParams.apply {
+                    cbVideo.isEnabled = true
+                    cbAudio.isEnabled = true
+                    cbApplication.isEnabled = true
+                    cbDebug.isEnabled = true
+                    etRtspRequest.isEnabled = true
+                    etRtspUsername.isEnabled = true
+                    etRtspPassword.isEnabled = true
+                }
                 tgRotation.isEnabled = true
             }
             setKeepScreenOn(false)
@@ -107,9 +112,22 @@ class LiveFragment : Fragment() {
 
         override fun onRtspFirstFrameRendered() {
             if (DEBUG) Log.v(TAG, "onRtspFirstFrameRendered()")
+            Log.i(TAG, "First frame rendered")
             binding.apply {
+                pbLoadingSurface.visibility = View.GONE
                 vShutterSurface.visibility = View.GONE
                 bnSnapshotSurface.isEnabled = true
+            }
+        }
+
+        override fun onRtspFrameSizeChanged(width: Int, height: Int) {
+            if (DEBUG) Log.v(TAG, "onRtspFrameSizeChanged(width=$width, height=$height)")
+            Log.i(TAG, "Video resolution changed to ${width}x${height}")
+            svVideoSurfaceResolution = Pair(width, height)
+            ConstraintSet().apply {
+                clone(binding.csVideoSurface)
+                setDimensionRatio(binding.svVideoSurface.id, "$width:$height")
+                applyTo(binding.csVideoSurface)
             }
         }
     }
@@ -136,7 +154,6 @@ class LiveFragment : Fragment() {
             binding.apply {
                 tvStatusImage.text = "RTSP connected"
                 bnStartStopImage.text = "Stop RTSP"
-                pbLoadingImage.visibility = View.GONE
             }
             setKeepScreenOn(true)
         }
@@ -182,8 +199,20 @@ class LiveFragment : Fragment() {
 
         override fun onRtspFirstFrameRendered() {
             if (DEBUG) Log.v(TAG, "onRtspFirstFrameRendered()")
+            Log.i(TAG, "First frame rendered")
             binding.apply {
                 vShutterImage.visibility = View.GONE
+                pbLoadingImage.visibility = View.GONE
+            }
+        }
+
+        override fun onRtspFrameSizeChanged(width: Int, height: Int) {
+            if (DEBUG) Log.v(TAG, "onRtspFrameSizeChanged(width=$width, height=$height)")
+            Log.i(TAG, "Video resolution changed to ${width}x${height}")
+            ConstraintSet().apply {
+                clone(binding.csVideoImage)
+                setDimensionRatio(binding.ivVideoImage.id, "$width:$height")
+                applyTo(binding.csVideoImage)
             }
         }
     }
@@ -325,7 +354,7 @@ class LiveFragment : Fragment() {
             }
         }
 
-        binding.pbLoadingSurface.setOnClickListener {
+        binding.bnSnapshotSurface.setOnClickListener {
             val bitmap = getSnapshot()
             // TODO Save snapshot to DCIM folder
             if (bitmap != null) {
@@ -364,7 +393,8 @@ class LiveFragment : Fragment() {
                     val statistics = binding.svVideoSurface.statistics
                     val text =
                         "Video decoder: ${statistics.videoDecoderType.toString().lowercase()} ${if (statistics.videoDecoderName.isNullOrEmpty()) "" else "(${statistics.videoDecoderName})"}" +
-                        "\nVideo decoder latency: ${statistics.videoDecoderLatencyMsec} ms"
+                        "\nVideo decoder latency: ${statistics.videoDecoderLatencyMsec} ms" +
+                        "\nResolution: ${svVideoSurfaceResolution.first}x${svVideoSurfaceResolution.second}"
 //                        "\nNetwork latency: "
 
 //                    // Assume that difference between current Android time and camera time cannot be more than 5 sec.

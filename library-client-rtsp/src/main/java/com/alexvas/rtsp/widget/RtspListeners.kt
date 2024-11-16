@@ -11,6 +11,7 @@ interface RtspStatusListener {
     fun onRtspStatusFailedUnauthorized() {}
     fun onRtspStatusFailed(message: String?) {}
     fun onRtspFirstFrameRendered() {}
+    fun onRtspFrameSizeChanged(width: Int, height: Int) {}
 }
 
 /**
