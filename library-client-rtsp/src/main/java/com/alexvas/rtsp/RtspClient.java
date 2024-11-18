@@ -975,7 +975,11 @@ public class RtspClient {
                     if (currentTrack != null) {
                         // m=<media> <port>/<number of ports> <proto> <fmt> ...
                         String[] values = TextUtils.split(param.second, " ");
-                        currentTrack.payloadType = (values.length > 3 ? Integer.parseInt(values[3]) : -1);
+                        try{
+                            currentTrack.payloadType = (values.length > 3 ? Integer.parseInt(values[3]) : -1);
+                        }catch (Exception e){
+                            currentTrack.payloadType = -1;
+                        }
                         if (currentTrack.payloadType == -1)
                             Log.e(TAG, "Failed to get payload type from \"m=" + param.second + "\"");
                     }
