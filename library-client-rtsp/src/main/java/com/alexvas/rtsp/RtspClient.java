@@ -975,9 +975,9 @@ public class RtspClient {
                     if (currentTrack != null) {
                         // m=<media> <port>/<number of ports> <proto> <fmt> ...
                         String[] values = TextUtils.split(param.second, " ");
-                        try{
+                        try {
                             currentTrack.payloadType = (values.length > 3 ? Integer.parseInt(values[3]) : -1);
-                        }catch (Exception e){
+                        } catch (Exception e) {
                             currentTrack.payloadType = -1;
                         }
                         if (currentTrack.payloadType == -1)
