@@ -46,7 +46,7 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.2.0'
     implementation 'androidx.lifecycle:lifecycle-extensions:2.2.0'
 
-    def androidx_navigation_version = '2.8.4'
+    def androidx_navigation_version = '2.8.5'
     implementation "androidx.navigation:navigation-fragment-ktx:$androidx_navigation_version"
     implementation "androidx.navigation:navigation-ui-ktx:$androidx_navigation_version"
     implementation "androidx.navigation:navigation-fragment-ktx:$androidx_navigation_version"
