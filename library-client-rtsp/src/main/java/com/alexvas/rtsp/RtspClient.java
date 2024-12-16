@@ -26,6 +26,7 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -667,7 +668,17 @@ public class RtspClient {
                 if (videoSeqNum > header.sequenceNumber)
                     Log.w(TAG, "Invalid video seq num " + videoSeqNum + "/" + header.sequenceNumber);
                 videoSeqNum = header.sequenceNumber;
-                byte[] nalUnit = videoParser.processRtpPacketAndGetNalUnit(data, header.payloadSize, header.marker == 1);
+
+                byte[] nalUnit;
+                // If extendion bit set in header, skip extension data
+                if (header.extension == 1) {
+                    int skipBytes = ((data[2] & 0xFF) << 8 | (data[3] & 0xFF)) * 4 + 4;
+                    nalUnit = videoParser.processRtpPacketAndGetNalUnit(Arrays.copyOfRange(data, skipBytes, data.length),
+                            header.payloadSize - skipBytes, header.marker == 1);
+                } else {
+                    nalUnit = videoParser.processRtpPacketAndGetNalUnit(data, header.payloadSize, header.marker == 1);
+                }
+
                 if (nalUnit != null) {
                     boolean isH265 = sdpInfo.videoTrack.videoCodec == VIDEO_CODEC_H265;
                     byte type = VideoCodecUtils.INSTANCE.getNalUnitType(nalUnit, 0, nalUnit.length, isH265);
