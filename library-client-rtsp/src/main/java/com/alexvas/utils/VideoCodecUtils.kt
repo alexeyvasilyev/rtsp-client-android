@@ -101,6 +101,8 @@ object VideoCodecUtils {
             val nalUnitIndex = searchForNalUnitStart(data, off, length, nalUnitPrefixSize)
             if (nalUnitIndex >= 0) {
                 val nalUnitOffset = nalUnitIndex + nalUnitPrefixSize.get()
+                if (nalUnitOffset >= data.size)
+                    break
                 val nalUnitTypeOctet = data[nalUnitOffset]
                 if ((nalUnitTypeOctet and 0x1f).toInt() == byUnitType) {
                     return nalUnitIndex
@@ -304,6 +306,8 @@ object VideoCodecUtils {
 
             if (nalUnitIndex >= 0) {
                 val nalUnitOffset = nalUnitIndex + nalUnitPrefixSize.get()
+                if (nalUnitOffset >= data.size)
+                    return false
                 val nalUnitTypeOctet = data[nalUnitOffset]
 
                 if (isH265) {
