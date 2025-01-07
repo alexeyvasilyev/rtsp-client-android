@@ -600,7 +600,7 @@ public class RtspClient {
             }
             uriRtspSetup += track.request;
         }
-        return uriRtspSetup;
+        return uriRtspSetup.trim();
     }
 
     private static void checkExitFlag(@NonNull AtomicBoolean exitFlag) throws InterruptedException {
