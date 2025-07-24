@@ -98,15 +98,28 @@ abstract class VideoDecodeThread (
 
     @SuppressLint("UnsafeOptInUsageError")
     private fun getDecoderSafeWidthHeight(decoder: MediaCodec): Pair<Int, Int> {
+        if (DEBUG) Log.v(TAG, "getDecoderSafeWidthHeight()")
         val capabilities = decoder.codecInfo.getCapabilitiesForType(mimeType).videoCapabilities
-        return if (capabilities.isSizeSupported(width, height)) {
+        return if (capabilities == null) {
+            Log.e(TAG, "Not a video decoder")
+            Pair(-1, -1)
+        } else if (capabilities.isSizeSupported(width, height)) {
+            Log.i(TAG, "Video decoder frame size ${width}x${height} supported")
             Pair(width, height)
         } else {
+            Log.w(TAG, "Video decoder frame size ${width}x${height} is not supported")
             val widthAlignment = capabilities.widthAlignment
             val heightAlignment = capabilities.heightAlignment
-            Pair(
-                Util.ceilDivide(width, widthAlignment) * widthAlignment,
-                Util.ceilDivide(height, heightAlignment) * heightAlignment)
+            val w = Util.ceilDivide(width, widthAlignment) * widthAlignment
+            val h = Util.ceilDivide(height, heightAlignment) * heightAlignment
+            if (capabilities.isSizeSupported(w, h)) {
+                Log.i(TAG, "Video decoder frame size ${w}x${h} calculated from alignment ${widthAlignment}x${heightAlignment} and original size ${width}x${height}]")
+                Pair(w, h)
+            } else {
+                val p = Pair(capabilities.supportedWidths.upper, capabilities.supportedHeights.upper)
+                Log.i(TAG, "Video decoder max supported frame size ${w}x${h}")
+                p
+            }
         }
     }
 
@@ -435,7 +448,7 @@ abstract class VideoDecodeThread (
                         decoder = createVideoDecoderAndStart(DecoderType.SOFTWARE)
                         Log.i(TAG, "Software video decoder '${decoder.name}' started (${decoder.codecInfo.getCapabilitiesForType(mimeType).capabilitiesToString()})")
                     } catch (e: MediaCodec.CodecException) {
-                        Log.w(TAG, "${e.diagnosticInfo}\nisRecoverable: $${e.isRecoverable}, isTransient: ${e.isTransient}")
+                        Log.w(TAG, "${e.diagnosticInfo}\nisRecoverable: ${e.isRecoverable}, isTransient: ${e.isTransient}")
                         if (e.isRecoverable) {
                             // Recoverable error.
                             // Calling stop(), configure(), and start() to recover.
