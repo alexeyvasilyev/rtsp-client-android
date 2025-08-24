@@ -227,7 +227,6 @@ abstract class VideoDecodeThread (
         val format = getDecoderMediaFormat(decoder)
         decoderCreated(decoder, format)
         decoder.start()
-        videoFrameQueue.clear()
 
         val capabilities = decoder.codecInfo.getCapabilitiesForType(mimeType)
         val lowLatencySupport = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
