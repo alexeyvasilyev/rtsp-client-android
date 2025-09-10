@@ -17,7 +17,7 @@ import androidx.media3.common.util.ParsableByteArray;
 //
 //                   <----------RTP Packet Payload----------->
 @SuppressLint("UnsafeOptInUsageError")
-public class AacParser {
+public class AacParser extends AudioParser {
 
     private static final String TAG = AacParser.class.getSimpleName();
     private static final boolean DEBUG = false;
@@ -47,6 +47,7 @@ public class AacParser {
         headerScratchBytes = new ParsableByteArray();
     }
 
+    @Override
     @Nullable
     public byte[] processRtpPacketAndGetSample(@NonNull byte[] data, int length) {
         if (DEBUG)

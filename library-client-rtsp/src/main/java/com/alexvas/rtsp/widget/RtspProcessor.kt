@@ -135,6 +135,12 @@ class RtspProcessor(
                 when (sdpInfo.audioTrack?.audioCodec) {
                     RtspClient.AUDIO_CODEC_AAC -> audioMimeType = MediaFormat.MIMETYPE_AUDIO_AAC
                     RtspClient.AUDIO_CODEC_OPUS -> audioMimeType = MediaFormat.MIMETYPE_AUDIO_OPUS
+                    RtspClient.AUDIO_CODEC_G711 -> {
+                        when(sdpInfo.audioTrack?.payloadType){
+                            0 -> audioMimeType = MediaFormat.MIMETYPE_AUDIO_G711_MLAW
+                            8 -> audioMimeType = MediaFormat.MIMETYPE_AUDIO_G711_ALAW
+                        }
+                    }
                 }
                 val sps: ByteArray? = sdpInfo.videoTrack?.sps
                 val pps: ByteArray? = sdpInfo.videoTrack?.pps

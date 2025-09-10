@@ -9,6 +9,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.alexvas.rtsp.parser.AacParser;
+import com.alexvas.rtsp.parser.G711Parser;
+import com.alexvas.rtsp.parser.AudioParser;
 import com.alexvas.rtsp.parser.RtpH264Parser;
 import com.alexvas.rtsp.parser.RtpH265Parser;
 import com.alexvas.rtsp.parser.RtpHeaderParser;
@@ -182,12 +184,13 @@ public class RtspClient {
 
     public abstract static class Track {
         public String request;
+        public String mediaDesc;
         public int payloadType;
 
         @NonNull
         @Override
         public String toString() {
-            return "Track{request='" + request + "', payloadType=" + payloadType + '}';
+            return "Track{request='" + request + "', mediaDesc='" + mediaDesc + "', payloadType=" + payloadType + '}';
         }
     }
 
@@ -204,12 +207,14 @@ public class RtspClient {
     public static final int AUDIO_CODEC_UNKNOWN = -1;
     public static final int AUDIO_CODEC_AAC = 0;
     public static final int AUDIO_CODEC_OPUS = 1;
+    public static final int AUDIO_CODEC_G711 = 2;
 
     @NonNull
     private static String getAudioCodecName(int codec) {
         return switch (codec) {
             case AUDIO_CODEC_AAC -> "AAC";
             case AUDIO_CODEC_OPUS -> "Opus";
+            case AUDIO_CODEC_G711 -> "G.711";
             default -> "Unknown";
         };
     }
@@ -255,7 +260,7 @@ public class RtspClient {
     private final @Nullable String password;
     private final @Nullable String userAgent;
 
-    private RtspClient(@NonNull RtspClient.Builder builder) {
+    private RtspClient(@NonNull Builder builder) {
         rtspSocket = builder.rtspSocket;
         uriRtsp = builder.uriRtsp;
         exitFlag = builder.exitFlag;
@@ -632,9 +637,13 @@ public class RtspClient {
         final RtpParser videoParser = (sdpInfo.videoTrack != null && sdpInfo.videoTrack.videoCodec == VIDEO_CODEC_H265 ?
                 new RtpH265Parser() :
                 new RtpH264Parser());
-        final AacParser audioParser = (sdpInfo.audioTrack != null && sdpInfo.audioTrack.audioCodec == AUDIO_CODEC_AAC ?
-                new AacParser(sdpInfo.audioTrack.mode) :
-                null);
+        final AudioParser audioParser = sdpInfo.audioTrack != null
+                ? switch (sdpInfo.audioTrack.audioCodec){
+                    case AUDIO_CODEC_AAC -> new AacParser(sdpInfo.audioTrack.mode);
+                    case AUDIO_CODEC_G711 -> new G711Parser();
+                    default -> null;
+                }
+                : null;
 
         byte[] nalUnitSps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.sps : null);
         byte[] nalUnitPps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.pps : null);
@@ -960,17 +969,21 @@ public class RtspClient {
                     // m=video 0 RTP/AVP 96
                     if (param.second.startsWith("video")) {
                         currentTrack = new VideoTrack();
+                        currentTrack.mediaDesc = param.second;
                         tracks[0] = currentTrack;
 
                     // m=audio 0 RTP/AVP 97
+                    // m=audio 0 RTP/AVP 8
                     } else if (param.second.startsWith("audio")) {
                         currentTrack = new AudioTrack();
+                        currentTrack.mediaDesc = param.second;
                         tracks[1] = currentTrack;
 
                     // m=application 0 RTP/AVP 99
                     // a=rtpmap:99 com.my/90000
                     } else if (param.second.startsWith("application")) {
                         currentTrack = new ApplicationTrack();
+                        currentTrack.mediaDesc = param.second;
                         tracks[2] = currentTrack;
 
                     } else if (param.second.startsWith("text")) {
@@ -1047,6 +1060,7 @@ public class RtspClient {
                                         switch (values[0].toLowerCase()) {
                                             case "mpeg4-generic" -> track.audioCodec = AUDIO_CODEC_AAC;
                                             case "opus" -> track.audioCodec = AUDIO_CODEC_OPUS;
+                                            case "pcma", "pcmu" -> track.audioCodec = AUDIO_CODEC_G711;
                                             default -> {
                                                 Log.w(TAG, "Unknown audio codec \"" + values[0] + "\"");
                                                 track.audioCodec = AUDIO_CODEC_UNKNOWN;
@@ -1068,6 +1082,28 @@ public class RtspClient {
                     break;
             }
         }
+
+        // Handle static PT that comes with no rtpmap
+        AudioTrack track = (AudioTrack) tracks[1];
+        if (track.audioCodec==AUDIO_CODEC_UNKNOWN){
+            String[] values = TextUtils.split(track.mediaDesc, " ");
+            //audio 0 RTP/AVP 8
+            if (values.length>=4){
+                for (int i = 3; i < values.length; i++){
+                    int payloadType = Integer.parseInt(values[i]);
+                    switch (payloadType){
+                        case 0,8 ->{
+                            track.payloadType = payloadType;
+                            track.audioCodec = AUDIO_CODEC_G711;
+                            track.sampleRateHz = 8000;
+                            track.channels = 1;
+                        }
+                    }
+                    if (track.audioCodec!=AUDIO_CODEC_UNKNOWN) break;
+                }
+            }
+        }
+
         return tracks;
     }
 
