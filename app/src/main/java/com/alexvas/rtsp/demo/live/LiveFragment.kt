@@ -22,6 +22,7 @@ import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.min
+import androidx.core.net.toUri
 
 @SuppressLint("LogNotTimber")
 class LiveFragment : Fragment() {
@@ -312,13 +313,14 @@ class LiveFragment : Fragment() {
                 binding.svVideoSurface.stop()
                 stopStatistics()
             } else {
-                val uri = Uri.parse(liveViewModel.rtspRequest.value)
+                val uri = liveViewModel.rtspRequest.value!!.toUri()
                 binding.svVideoSurface.apply {
                     init(
                         uri,
                         username = liveViewModel.rtspUsername.value,
                         password = liveViewModel.rtspPassword.value,
-                        userAgent = "rtsp-client-android")
+                        userAgent = "rtsp-client-android"
+                    )
                     debug = binding.llRtspParams.cbDebug.isChecked
                     start(
                         requestVideo = binding.llRtspParams.cbVideo.isChecked,
@@ -335,9 +337,14 @@ class LiveFragment : Fragment() {
                 binding.ivVideoImage.stop()
                 stopStatistics()
             } else {
-                val uri = Uri.parse(liveViewModel.rtspRequest.value)
+                val uri = liveViewModel.rtspRequest.value!!.toUri()
                 binding.ivVideoImage.apply {
-                    init(uri, liveViewModel.rtspUsername.value, liveViewModel.rtspPassword.value, "rtsp-client-android")
+                    init(
+                        uri,
+                        username = liveViewModel.rtspUsername.value,
+                        password = liveViewModel.rtspPassword.value,
+                        userAgent = "rtsp-client-android"
+                    )
                     debug = binding.llRtspParams.cbDebug.isChecked
                     onRtspImageBitmapListener = object : RtspImageView.RtspImageBitmapListener {
                         override fun onRtspImageBitmapObtained(bitmap: Bitmap) {

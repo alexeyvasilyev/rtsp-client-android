@@ -93,9 +93,21 @@ open class RtspSurfaceView: SurfaceView {
         holder.addCallback(surfaceCallback)
     }
 
-    fun init(uri: Uri, username: String?, password: String?, userAgent: String?) {
-        if (DEBUG) Log.v(TAG, "init(uri='$uri', username='$username', password='$password', userAgent='$userAgent')")
-        rtspProcessor.init(uri, username, password, userAgent)
+    fun init(
+        uri: Uri,
+        username: String? = null,
+        password: String? = null,
+        userAgent: String? = null,
+        socketTimeout: Int? = null
+    ) {
+        if (DEBUG) Log.v(TAG, "init(uri='$uri', username='$username', password='$password', userAgent='$userAgent', socketTimeout=$socketTimeout)")
+        rtspProcessor.init(
+            uri,
+            username,
+            password,
+            userAgent,
+            socketTimeout ?: RtspProcessor.DEFAULT_SOCKET_TIMEOUT
+        )
     }
 
     /**

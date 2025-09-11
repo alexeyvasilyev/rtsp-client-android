@@ -77,6 +77,9 @@ class RtspProcessor(
         }
         private set
 
+    /** Read and connect timeout for socket in msec. */
+    private var socketTimeoutMsec: Int = 5000
+
     /**
      * Show more debug info on console on runtime.
      */
@@ -334,9 +337,17 @@ class RtspProcessor(
                 if (DEBUG) Log.d(TAG, "Connecting to ${uri.host.toString()}:$port...")
 
                 socket = if (uri.scheme?.lowercase() == "rtsps")
-                    NetUtils.createSslSocketAndConnect(uri.host.toString(), port, 5000)
+                    NetUtils.createSslSocketAndConnect(
+                        uri.host.toString(),
+                        port,
+                        socketTimeoutMsec
+                    )
                 else
-                    NetUtils.createSocketAndConnect(uri.host.toString(), port, 5000)
+                    NetUtils.createSocketAndConnect(
+                        uri.host.toString(),
+                        port,
+                        socketTimeoutMsec
+                    )
 
                 // Blocking call until stopped variable is true or connection failed
                 val rtspClient = RtspClient.Builder(socket, uri.toString(), rtspStopped, proxyClientListener)
@@ -424,12 +435,13 @@ class RtspProcessor(
 //        uiHandler.post { statusListener?.onRtspStatusDisconnected() }
     }
 
-    fun init(uri: Uri, username: String?, password: String?, userAgent: String? = null) {
-        if (DEBUG) Log.v(TAG, "init(uri='$uri', username='$username', password='$password', userAgent='$userAgent')")
+    fun init(uri: Uri, username: String?, password: String?, userAgent: String? = null, socketTimeout: Int = DEFAULT_SOCKET_TIMEOUT) {
+        if (DEBUG) Log.v(TAG, "init(uri='$uri', username='$username', password='$password', userAgent='$userAgent', socketTimeout=$socketTimeout)")
         this.uri = uri
         this.username = username
         this.password = password
         this.userAgent = userAgent
+        this.socketTimeoutMsec = socketTimeout
     }
 
     fun start(requestVideo: Boolean, requestAudio: Boolean, requestApplication: Boolean = false) {
@@ -586,6 +598,8 @@ class RtspProcessor(
         private const val DEBUG = false
 
         private const val DEFAULT_RTSP_PORT = 554
+
+        const val DEFAULT_SOCKET_TIMEOUT = 5000
     }
 
 }
