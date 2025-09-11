@@ -1,6 +1,6 @@
 buildscript {
 
-  ext.kotlin_version = '2.2.0'
+  ext.kotlin_version = '2.2.10'
   ext.compile_sdk_version = 36
   ext.min_sdk_version = 24
   ext.target_sdk_version = 35
@@ -12,7 +12,7 @@ buildscript {
     mavenCentral()
   }
   dependencies {
-    classpath 'com.android.tools.build:gradle:8.11.1'
+    classpath 'com.android.tools.build:gradle:8.13.0'
     classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
   }
 }
@@ -26,5 +26,5 @@ allprojects {
 }
 
 tasks.register('clean', Delete) {
-  delete rootProject.buildDir
+  delete rootProject.layout.buildDirectory
 }
