@@ -11,7 +11,7 @@ Unlike [AndroidX Media ExoPlayer](https://github.com/androidx/media) which also 
 - RTSP/RTSPS over TCP.
 - Supports majority of RTSP IP cameras.
 - Video H.264/H.265.
-- Audio AAC LC only.
+- Audio AAC LC, G.711 uLaw, G.711 aLaw.
 - Support for application specific data sent via RTP, e.g. GPS data (`m=application`, see [RFC 4566 sec.5.14](https://datatracker.ietf.org/doc/html/rfc4566#section-5.14))
 - Basic/Digest authentication.
 - Uses Android's [Low-Latency MediaCodec](https://source.android.com/docs/core/media/low-latency-media) by default if available.
@@ -21,7 +21,6 @@ Unlike [AndroidX Media ExoPlayer](https://github.com/androidx/media) which also 
 - Android min API 24.
 
 ## Upcoming features:
-- PCM and G.711 aLaw/uLaw audio streams.
 - 2-w talk.
 
 ## Permissions:
