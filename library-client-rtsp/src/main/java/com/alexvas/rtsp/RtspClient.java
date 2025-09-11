@@ -9,6 +9,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.alexvas.rtsp.parser.AacParser;
+import com.alexvas.rtsp.parser.G711Parser;
+import com.alexvas.rtsp.parser.AudioParser;
 import com.alexvas.rtsp.parser.RtpH264Parser;
 import com.alexvas.rtsp.parser.RtpH265Parser;
 import com.alexvas.rtsp.parser.RtpHeaderParser;
@@ -204,12 +206,16 @@ public class RtspClient {
     public static final int AUDIO_CODEC_UNKNOWN = -1;
     public static final int AUDIO_CODEC_AAC = 0;
     public static final int AUDIO_CODEC_OPUS = 1;
+    public static final int AUDIO_CODEC_G711_ULAW = 2;
+    public static final int AUDIO_CODEC_G711_ALAW = 3;
 
     @NonNull
     private static String getAudioCodecName(int codec) {
         return switch (codec) {
             case AUDIO_CODEC_AAC -> "AAC";
             case AUDIO_CODEC_OPUS -> "Opus";
+            case AUDIO_CODEC_G711_ULAW -> "G.711 uLaw";
+            case AUDIO_CODEC_G711_ALAW -> "G.711 aLaw";
             default -> "Unknown";
         };
     }
@@ -632,9 +638,14 @@ public class RtspClient {
         final RtpParser videoParser = (sdpInfo.videoTrack != null && sdpInfo.videoTrack.videoCodec == VIDEO_CODEC_H265 ?
                 new RtpH265Parser() :
                 new RtpH264Parser());
-        final AacParser audioParser = (sdpInfo.audioTrack != null && sdpInfo.audioTrack.audioCodec == AUDIO_CODEC_AAC ?
-                new AacParser(sdpInfo.audioTrack.mode) :
-                null);
+        final AudioParser audioParser = sdpInfo.audioTrack != null
+                ? switch (sdpInfo.audioTrack.audioCodec) {
+                    case AUDIO_CODEC_AAC -> new AacParser(sdpInfo.audioTrack.mode);
+                    case AUDIO_CODEC_G711_ULAW,
+                         AUDIO_CODEC_G711_ALAW -> new G711Parser();
+                    default -> null;
+                }
+                : null;
 
         byte[] nalUnitSps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.sps : null);
         byte[] nalUnitPps = (sdpInfo.videoTrack != null ? sdpInfo.videoTrack.pps : null);
@@ -963,6 +974,7 @@ public class RtspClient {
                         tracks[0] = currentTrack;
 
                     // m=audio 0 RTP/AVP 97
+                    // m=audio 0 RTP/AVP 0 8
                     } else if (param.second.startsWith("audio")) {
                         currentTrack = new AudioTrack();
                         tracks[1] = currentTrack;
@@ -988,6 +1000,21 @@ public class RtspClient {
                         String[] values = TextUtils.split(param.second, " ");
                         try {
                             currentTrack.payloadType = (values.length > 3 ? Integer.parseInt(values[3]) : -1);
+                            // Handle static PT that comes with no rtpmap
+                            if (currentTrack instanceof AudioTrack track) {
+                                switch (currentTrack.payloadType) {
+                                    case 0 -> { // uLaw
+                                        track.audioCodec = AUDIO_CODEC_G711_ULAW;
+                                        track.sampleRateHz = 8000;
+                                        track.channels = 1;
+                                    }
+                                    case 8 -> { // aLaw
+                                        track.audioCodec = AUDIO_CODEC_G711_ALAW;
+                                        track.sampleRateHz = 8000;
+                                        track.channels = 1;
+                                    }
+                                }
+                            }
                         } catch (Exception e) {
                             currentTrack.payloadType = -1;
                         }
@@ -1047,6 +1074,8 @@ public class RtspClient {
                                         switch (values[0].toLowerCase()) {
                                             case "mpeg4-generic" -> track.audioCodec = AUDIO_CODEC_AAC;
                                             case "opus" -> track.audioCodec = AUDIO_CODEC_OPUS;
+                                            case "pcmu" -> track.audioCodec = AUDIO_CODEC_G711_ULAW;
+                                            case "pcma" -> track.audioCodec = AUDIO_CODEC_G711_ALAW;
                                             default -> {
                                                 Log.w(TAG, "Unknown audio codec \"" + values[0] + "\"");
                                                 track.audioCodec = AUDIO_CODEC_UNKNOWN;

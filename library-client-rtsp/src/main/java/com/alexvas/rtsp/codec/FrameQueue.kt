@@ -8,7 +8,7 @@ enum class VideoCodecType {
 }
 
 enum class AudioCodecType {
-    AAC_LC, UNKNOWN
+    AAC_LC, G711_ALAW, G711_MLAW, UNKNOWN
 }
 
 class VideoFrameQueue(frameQueueCapacity: Int): FrameQueue<FrameQueue.VideoFrame>(frameQueueCapacity)
