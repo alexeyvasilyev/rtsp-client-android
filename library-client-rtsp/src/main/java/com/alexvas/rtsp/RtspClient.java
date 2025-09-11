@@ -206,14 +206,16 @@ public class RtspClient {
     public static final int AUDIO_CODEC_UNKNOWN = -1;
     public static final int AUDIO_CODEC_AAC = 0;
     public static final int AUDIO_CODEC_OPUS = 1;
-    public static final int AUDIO_CODEC_G711 = 2;
+    public static final int AUDIO_CODEC_G711_ULAW = 2;
+    public static final int AUDIO_CODEC_G711_ALAW = 3;
 
     @NonNull
     private static String getAudioCodecName(int codec) {
         return switch (codec) {
             case AUDIO_CODEC_AAC -> "AAC";
             case AUDIO_CODEC_OPUS -> "Opus";
-            case AUDIO_CODEC_G711 -> "G.711";
+            case AUDIO_CODEC_G711_ULAW -> "G.711 uLaw";
+            case AUDIO_CODEC_G711_ALAW -> "G.711 aLaw";
             default -> "Unknown";
         };
     }
@@ -637,9 +639,10 @@ public class RtspClient {
                 new RtpH265Parser() :
                 new RtpH264Parser());
         final AudioParser audioParser = sdpInfo.audioTrack != null
-                ? switch (sdpInfo.audioTrack.audioCodec){
+                ? switch (sdpInfo.audioTrack.audioCodec) {
                     case AUDIO_CODEC_AAC -> new AacParser(sdpInfo.audioTrack.mode);
-                    case AUDIO_CODEC_G711 -> new G711Parser();
+                    case AUDIO_CODEC_G711_ULAW,
+                         AUDIO_CODEC_G711_ALAW -> new G711Parser();
                     default -> null;
                 }
                 : null;
@@ -998,10 +1001,15 @@ public class RtspClient {
                         try {
                             currentTrack.payloadType = (values.length > 3 ? Integer.parseInt(values[3]) : -1);
                             // Handle static PT that comes with no rtpmap
-                            if (currentTrack instanceof AudioTrack track){
-                                switch (currentTrack.payloadType){
-                                    case 0,8 ->{ //0-uLaw 8-aLaw
-                                        track.audioCodec = AUDIO_CODEC_G711;
+                            if (currentTrack instanceof AudioTrack track) {
+                                switch (currentTrack.payloadType) {
+                                    case 0 -> { // uLaw
+                                        track.audioCodec = AUDIO_CODEC_G711_ULAW;
+                                        track.sampleRateHz = 8000;
+                                        track.channels = 1;
+                                    }
+                                    case 8 -> { // aLaw
+                                        track.audioCodec = AUDIO_CODEC_G711_ALAW;
                                         track.sampleRateHz = 8000;
                                         track.channels = 1;
                                     }
@@ -1066,7 +1074,8 @@ public class RtspClient {
                                         switch (values[0].toLowerCase()) {
                                             case "mpeg4-generic" -> track.audioCodec = AUDIO_CODEC_AAC;
                                             case "opus" -> track.audioCodec = AUDIO_CODEC_OPUS;
-                                            case "pcma", "pcmu" -> track.audioCodec = AUDIO_CODEC_G711;
+                                            case "pcmu" -> track.audioCodec = AUDIO_CODEC_G711_ULAW;
+                                            case "pcma" -> track.audioCodec = AUDIO_CODEC_G711_ALAW;
                                             default -> {
                                                 Log.w(TAG, "Unknown audio codec \"" + values[0] + "\"");
                                                 track.audioCodec = AUDIO_CODEC_UNKNOWN;
