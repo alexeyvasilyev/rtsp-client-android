@@ -184,13 +184,12 @@ public class RtspClient {
 
     public abstract static class Track {
         public String request;
-        public String mediaDesc;
         public int payloadType;
 
         @NonNull
         @Override
         public String toString() {
-            return "Track{request='" + request + "', mediaDesc='" + mediaDesc + "', payloadType=" + payloadType + '}';
+            return "Track{request='" + request + "', payloadType=" + payloadType + '}';
         }
     }
 
@@ -260,7 +259,7 @@ public class RtspClient {
     private final @Nullable String password;
     private final @Nullable String userAgent;
 
-    private RtspClient(@NonNull Builder builder) {
+    private RtspClient(@NonNull RtspClient.Builder builder) {
         rtspSocket = builder.rtspSocket;
         uriRtsp = builder.uriRtsp;
         exitFlag = builder.exitFlag;
@@ -969,21 +968,18 @@ public class RtspClient {
                     // m=video 0 RTP/AVP 96
                     if (param.second.startsWith("video")) {
                         currentTrack = new VideoTrack();
-                        currentTrack.mediaDesc = param.second;
                         tracks[0] = currentTrack;
 
                     // m=audio 0 RTP/AVP 97
-                    // m=audio 0 RTP/AVP 8
+                    // m=audio 0 RTP/AVP 0 8
                     } else if (param.second.startsWith("audio")) {
                         currentTrack = new AudioTrack();
-                        currentTrack.mediaDesc = param.second;
                         tracks[1] = currentTrack;
 
                     // m=application 0 RTP/AVP 99
                     // a=rtpmap:99 com.my/90000
                     } else if (param.second.startsWith("application")) {
                         currentTrack = new ApplicationTrack();
-                        currentTrack.mediaDesc = param.second;
                         tracks[2] = currentTrack;
 
                     } else if (param.second.startsWith("text")) {
@@ -1001,6 +997,16 @@ public class RtspClient {
                         String[] values = TextUtils.split(param.second, " ");
                         try {
                             currentTrack.payloadType = (values.length > 3 ? Integer.parseInt(values[3]) : -1);
+                            // Handle static PT that comes with no rtpmap
+                            if (currentTrack instanceof AudioTrack track){
+                                switch (currentTrack.payloadType){
+                                    case 0,8 ->{ //0-uLaw 8-aLaw
+                                        track.audioCodec = AUDIO_CODEC_G711;
+                                        track.sampleRateHz = 8000;
+                                        track.channels = 1;
+                                    }
+                                }
+                            }
                         } catch (Exception e) {
                             currentTrack.payloadType = -1;
                         }
@@ -1082,28 +1088,6 @@ public class RtspClient {
                     break;
             }
         }
-
-        // Handle static PT that comes with no rtpmap
-        AudioTrack track = (AudioTrack) tracks[1];
-        if (track.audioCodec==AUDIO_CODEC_UNKNOWN){
-            String[] values = TextUtils.split(track.mediaDesc, " ");
-            //audio 0 RTP/AVP 8
-            if (values.length>=4){
-                for (int i = 3; i < values.length; i++){
-                    int payloadType = Integer.parseInt(values[i]);
-                    switch (payloadType){
-                        case 0,8 ->{
-                            track.payloadType = payloadType;
-                            track.audioCodec = AUDIO_CODEC_G711;
-                            track.sampleRateHz = 8000;
-                            track.channels = 1;
-                        }
-                    }
-                    if (track.audioCodec!=AUDIO_CODEC_UNKNOWN) break;
-                }
-            }
-        }
-
         return tracks;
     }
 
