@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.graphics.Rect
 import android.media.Image
+import androidx.camera.core.FlashState
 import androidx.camera.core.ImageInfo
 import androidx.camera.core.ImageProcessingUtil
 import androidx.camera.core.ImageProxy
@@ -40,7 +41,8 @@ internal class AndroidImageProxy(private val image: Image) : ImageProxy {
         TagBundle.emptyBundle(),
         image.timestamp,
         0,
-        Matrix()
+        Matrix(),
+        FlashState.UNAVAILABLE
     )
 
     override fun close() {

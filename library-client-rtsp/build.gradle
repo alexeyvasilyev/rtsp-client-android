@@ -40,6 +40,6 @@ android {
 dependencies {
     implementation 'androidx.annotation:annotation:1.9.1'
     implementation 'androidx.media3:media3-exoplayer:1.8.0'
-    implementation 'androidx.camera:camera-core:1.4.2' // YUV -> BMP conversion
+    implementation 'androidx.camera:camera-core:1.5.1' // YUV -> BMP conversion
     implementation 'org.jcodec:jcodec:0.2.5' // SPS frame modification
 }
