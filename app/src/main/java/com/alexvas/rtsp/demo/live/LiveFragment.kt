@@ -220,7 +220,11 @@ class LiveFragment : Fragment() {
 
     private fun getSnapshot(): Bitmap? {
         if (DEBUG) Log.v(TAG, "getSnapshot()")
-        val surfaceBitmap = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+        val surfaceBitmap = Bitmap.createBitmap(
+            svVideoSurfaceResolution.first,
+            svVideoSurfaceResolution.second,
+            Bitmap.Config.ARGB_8888
+        )
         val lock = Object()
         val success = AtomicBoolean(false)
         val thread = HandlerThread("PixelCopyHelper")
@@ -365,7 +369,7 @@ class LiveFragment : Fragment() {
             val bitmap = getSnapshot()
             // TODO Save snapshot to DCIM folder
             if (bitmap != null) {
-                Toast.makeText(requireContext(), "Snapshot succeeded", Toast.LENGTH_LONG).show()
+                Toast.makeText(requireContext(), "Snapshot succeeded ${bitmap.width}x${bitmap.height}", Toast.LENGTH_LONG).show()
             } else {
                 Toast.makeText(requireContext(), "Snapshot failed", Toast.LENGTH_LONG).show()
             }
