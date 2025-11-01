@@ -26,7 +26,8 @@ abstract class VideoDecodeThread (
     protected val rotation: Int, // 0, 90, 180, 270
     protected val videoFrameQueue: VideoFrameQueue,
     protected val videoDecoderListener: VideoDecoderListener,
-    protected var videoDecoderType: DecoderType
+    protected var videoDecoderType: DecoderType,
+    var isDebounceEnable: Boolean = false
 ) : Thread() {
 
     enum class DecoderType {
@@ -177,7 +178,12 @@ abstract class VideoDecodeThread (
     abstract fun decoderCreated(mediaCodec: MediaCodec, mediaFormat: MediaFormat)
 
     /** Frame processed */
-    abstract fun releaseOutputBuffer(mediaCodec: MediaCodec, outIndex: Int, render: Boolean)
+    abstract fun releaseOutputBuffer(
+        mediaCodec: MediaCodec,
+        outIndex: Int,
+        info: MediaCodec.BufferInfo,
+        render: Boolean
+    )
 
     /** Decoder stopped and released */
     abstract fun decoderDestroyed(mediaCodec: MediaCodec)
@@ -419,7 +425,7 @@ abstract class VideoDecodeThread (
 
                                         val render = bufferInfo.size != 0 && !exitFlag.get()
                                         if (DEBUG) Log.i(TAG, "\tFrame decoded [outIndex=$outIndex, render=$render]")
-                                        releaseOutputBuffer(decoder, outIndex, render)
+                                        releaseOutputBuffer(decoder, outIndex, bufferInfo, render)
                                         if (!firstFrameDecoded && render) {
                                             firstFrameDecoded = true
                                         }

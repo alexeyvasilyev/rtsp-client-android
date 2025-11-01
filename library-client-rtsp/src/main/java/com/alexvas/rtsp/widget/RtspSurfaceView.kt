@@ -24,7 +24,7 @@ open class RtspSurfaceView: SurfaceView {
 
     private var rtspProcessor = RtspProcessor(
         onVideoDecoderCreateRequested = {
-            videoMimeType, videoRotation, videoFrameQueue, videoDecoderListener, videoDecoderType ->
+            videoMimeType, videoRotation, videoFrameQueue, videoDecoderListener, videoDecoderType, isDebounceEnable ->
             VideoDecoderSurfaceThread(
                 holder.surface,
                 videoMimeType,
@@ -34,6 +34,7 @@ open class RtspSurfaceView: SurfaceView {
                 videoFrameQueue,
                 videoDecoderListener,
                 videoDecoderType,
+                isDebounceEnable
             )
         }
     )
@@ -57,6 +58,10 @@ open class RtspSurfaceView: SurfaceView {
     var debug: Boolean
         get() = rtspProcessor.debug
         set(value) { rtspProcessor.debug = value }
+
+    var isDebounceEnable: Boolean
+        get() = rtspProcessor.isDebounceEnable
+        set(value) { rtspProcessor.isDebounceEnable = value }
 
     private val surfaceCallback = object: SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder) {

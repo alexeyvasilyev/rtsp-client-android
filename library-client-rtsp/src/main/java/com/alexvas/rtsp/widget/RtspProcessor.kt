@@ -33,7 +33,8 @@ class RtspProcessor(
         videoRotation: Int, // 0, 90, 180, 270
         videoFrameQueue: VideoFrameQueue,
         videoDecoderListener: VideoDecoderListener,
-        videoDecoderType: DecoderType
+        videoDecoderType: DecoderType,
+        isDebounceEnable: Boolean,
     ) -> VideoDecodeThread)
 ) {
 
@@ -117,6 +118,15 @@ class RtspProcessor(
      * Listener for getting raw data, e.g. for recording.
      */
     var dataListener: RtspDataListener? = null
+
+    /**
+     * When enabled, this feature helps prevent video frame rate jitter or fluctuations.
+     */
+    var isDebounceEnable = false
+        set(value) {
+            field = value
+            videoDecodeThread?.isDebounceEnable = value
+        }
 
     private val proxyClientListener = object: RtspClient.RtspClientListener {
 
@@ -411,6 +421,7 @@ class RtspProcessor(
                 videoFrameQueue,
                 videoDecoderListener,
                 videoDecoderType,
+                isDebounceEnable
             )
             videoDecodeThread!!.apply {
                 name = "RTSP video thread [${getUriName()}]"

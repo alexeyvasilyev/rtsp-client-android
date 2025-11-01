@@ -27,7 +27,12 @@ class VideoDecoderBitmapThread (
         mediaCodec.configure(mediaFormat, null, null, 0)
     }
 
-    override fun releaseOutputBuffer(mediaCodec: MediaCodec, outIndex: Int, render: Boolean) {
+    override fun releaseOutputBuffer(
+        mediaCodec: MediaCodec,
+        outIndex: Int,
+        info: MediaCodec.BufferInfo,
+        render: Boolean
+    ) {
         val image = mediaCodec.getOutputImage(outIndex)
         image?.let {
             if (colorConverter == null)

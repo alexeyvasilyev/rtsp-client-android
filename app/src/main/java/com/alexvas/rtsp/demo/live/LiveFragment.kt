@@ -2,14 +2,18 @@ package com.alexvas.rtsp.demo.live
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
-import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
-import android.view.*
+import android.view.LayoutInflater
+import android.view.PixelCopy
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.constraintlayout.widget.ConstraintSet
+import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.alexvas.rtsp.codec.VideoDecodeThread
@@ -22,7 +26,6 @@ import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.min
-import androidx.core.net.toUri
 
 @SuppressLint("LogNotTimber")
 class LiveFragment : Fragment() {
@@ -274,6 +277,10 @@ class LiveFragment : Fragment() {
         liveViewModel.rtspPassword.observe(viewLifecycleOwner) {
             if (binding.llRtspParams.etRtspPassword.text.toString() != it)
                 binding.llRtspParams.etRtspPassword.setText(it)
+        }
+
+        binding.cbVideoDebounce.setOnCheckedChangeListener { _, isChecked ->
+            binding.svVideoSurface.isDebounceEnable = isChecked
         }
 
         binding.cbExperimentalRewriteSps.setOnCheckedChangeListener { _, isChecked ->
