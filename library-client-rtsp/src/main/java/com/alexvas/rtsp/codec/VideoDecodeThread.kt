@@ -59,6 +59,7 @@ abstract class VideoDecodeThread (
     @Volatile private var networkLatency = -1
     private var videoDecoderName: String? = null
     private var firstFrameDecoded = false
+    @Volatile private var videoStabilizationEnabled = false
 
     fun stopAsync() {
         if (DEBUG) Log.v(TAG, "stopAsync()")
@@ -94,6 +95,14 @@ abstract class VideoDecodeThread (
      */
     fun getCurrentNetworkLatencyMsec(): Int {
         return networkLatency
+    }
+
+    fun setVideoStabilizationEnabled(enabled: Boolean) {
+        videoStabilizationEnabled = enabled
+    }
+
+    fun isVideoStabilizationEnabled(): Boolean {
+        return videoStabilizationEnabled
     }
 
     @SuppressLint("UnsafeOptInUsageError")
@@ -177,7 +186,12 @@ abstract class VideoDecodeThread (
     abstract fun decoderCreated(mediaCodec: MediaCodec, mediaFormat: MediaFormat)
 
     /** Frame processed */
-    abstract fun releaseOutputBuffer(mediaCodec: MediaCodec, outIndex: Int, render: Boolean)
+    abstract fun releaseOutputBuffer(
+        mediaCodec: MediaCodec,
+        outIndex: Int,
+        bufferInfo: MediaCodec.BufferInfo,
+        render: Boolean
+    )
 
     /** Decoder stopped and released */
     abstract fun decoderDestroyed(mediaCodec: MediaCodec)
@@ -419,7 +433,7 @@ abstract class VideoDecodeThread (
 
                                         val render = bufferInfo.size != 0 && !exitFlag.get()
                                         if (DEBUG) Log.i(TAG, "\tFrame decoded [outIndex=$outIndex, render=$render]")
-                                        releaseOutputBuffer(decoder, outIndex, render)
+                                        releaseOutputBuffer(decoder, outIndex, bufferInfo, render)
                                         if (!firstFrameDecoded && render) {
                                             firstFrameDecoded = true
                                         }

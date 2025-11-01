@@ -33,7 +33,8 @@ class RtspProcessor(
         videoRotation: Int, // 0, 90, 180, 270
         videoFrameQueue: VideoFrameQueue,
         videoDecoderListener: VideoDecoderListener,
-        videoDecoderType: DecoderType
+        videoDecoderType: DecoderType,
+        videoStabilizationEnabled: Boolean,
     ) -> VideoDecodeThread)
 ) {
 
@@ -107,6 +108,15 @@ class RtspProcessor(
      * decoder latency by 2x times on some hardware decoders.
      */
     var experimentalUpdateSpsFrameWithLowLatencyParams = false
+
+    /**
+     * Enables the playback smoothing logic inside the video decoder.
+     */
+    var videoStabilizationEnabled: Boolean = false
+        set(value) {
+            field = value
+            videoDecodeThread?.setVideoStabilizationEnabled(value)
+        }
 
     /**
      * Status listener for getting RTSP event updates.
@@ -411,6 +421,7 @@ class RtspProcessor(
                 videoFrameQueue,
                 videoDecoderListener,
                 videoDecoderType,
+                videoStabilizationEnabled,
             )
             videoDecodeThread!!.apply {
                 name = "RTSP video thread [${getUriName()}]"
