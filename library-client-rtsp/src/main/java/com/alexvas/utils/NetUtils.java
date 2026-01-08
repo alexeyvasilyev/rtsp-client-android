@@ -5,6 +5,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -227,8 +228,10 @@ public class NetUtils {
         int totalReadBytes = 0;
         do {
             readBytes = inputStream.read(buffer, offset + totalReadBytes, length - totalReadBytes);
-            if (readBytes > 0)
-                totalReadBytes += readBytes;
+            if (readBytes == -1) {
+                throw new EOFException("Stream closed, read " + totalReadBytes + " of " + length + " bytes");
+            }
+            totalReadBytes += readBytes;
         } while (readBytes >= 0 && totalReadBytes < length);
         return totalReadBytes;
     }
