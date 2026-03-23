@@ -42,8 +42,7 @@ class VideoDecoderBitmapThread(
         bufferInfo: MediaCodec.BufferInfo,
         render: Boolean
     ) {
-        val image = mediaCodec.getOutputImage(outIndex)
-        image?.let {
+        mediaCodec.getOutputImage(outIndex)?.use { image ->
             if (colorConverter == null)
                 colorConverter = ColorConverterImageAndroidX()
             // Converting YUV 4:2:0 888 to Bitmap ARGB 8888
