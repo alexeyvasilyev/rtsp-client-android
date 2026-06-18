@@ -3,8 +3,11 @@ package com.alexvas.rtsp.parser
 import android.util.Log
 import com.alexvas.utils.VideoCodecUtils
 import com.alexvas.utils.VideoCodecUtils.getH264NalUnitTypeString
+import java.io.ByteArrayOutputStream
 
 class RtpH264Parser: RtpParser() {
+
+    private var stream = ByteArrayOutputStream()
 
     override fun processRtpPacketAndGetNalUnit(data: ByteArray, length: Int, marker: Boolean): ByteArray? {
         if (DEBUG) Log.v(TAG, "processRtpPacketAndGetNalUnit(data.size=${data.size}, length=$length, marker=$marker)")
@@ -57,7 +60,13 @@ class RtpH264Parser: RtpParser() {
                 if (DEBUG) Log.d(TAG, "Single NAL (${nalUnit.size})")
             }
         }
-        return nalUnit
+        nalUnit?.let { stream.write(it) }
+        if (marker) {
+            val result = stream.toByteArray()
+            stream = ByteArrayOutputStream()
+            return result
+        }
+        return null
     }
 
     private fun addStartFragmentedPacket(data: ByteArray, length: Int) {

@@ -1,8 +1,11 @@
 package com.alexvas.rtsp.parser
 
 import android.util.Log
+import java.io.ByteArrayOutputStream
 
 class RtpH265Parser: RtpParser() {
+
+    private var stream = ByteArrayOutputStream()
 
     override fun processRtpPacketAndGetNalUnit(data: ByteArray, length: Int, marker: Boolean): ByteArray? {
         if (DEBUG) Log.v(TAG, "processRtpPacketAndGetNalUnit(length=$length, marker=$marker)")
@@ -25,8 +28,13 @@ class RtpH265Parser: RtpParser() {
         } else {
             Log.e(TAG, "RTP H265 payload type [${nalType}] not supported.")
         }
-
-        return nalUnit
+        nalUnit?.let { stream.write(it) }
+        if (marker) {
+            val result = stream.toByteArray()
+            stream = ByteArrayOutputStream()
+            return result
+        }
+        return null
     }
 
     private fun processFragmentationUnitPacket(data: ByteArray, length: Int, marker: Boolean): ByteArray? {
