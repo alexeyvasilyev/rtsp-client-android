@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 //OPTIONS rtsp://10.0.1.145:88/videoSub RTSP/1.0
 //CSeq: 1
@@ -628,8 +629,6 @@ public class RtspClient {
         }
     }
 
-    private static long lastTimestamp = 0;
-
     private static void readRtpData(
             @NonNull InputStream inputStream,
             @NonNull SdpInfo sdpInfo,
@@ -684,19 +683,16 @@ public class RtspClient {
                 if (videoSeqNum > header.sequenceNumber)
                     Log.w(TAG, "Invalid video seq num " + videoSeqNum + "/" + header.sequenceNumber);
                 videoSeqNum = header.sequenceNumber;
-                long ts = header.timeStamp;
-                if (lastTimestamp == 0) lastTimestamp = ts;
 
                 byte[] nalUnit;
                 // If extendion bit set in header, skip extension data
                 if (header.extension == 1) {
                     int skipBytes = ((data[2] & 0xFF) << 8 | (data[3] & 0xFF)) * 4 + 4;
                     nalUnit = videoParser.processRtpPacketAndGetNalUnit(Arrays.copyOfRange(data, skipBytes, data.length),
-                            header.payloadSize - skipBytes, header.marker == 1 || ts != lastTimestamp);
+                            header.payloadSize - skipBytes, header.marker == 1);
                 } else {
-                    nalUnit = videoParser.processRtpPacketAndGetNalUnit(data, header.payloadSize, header.marker == 1 ||  ts != lastTimestamp);
+                    nalUnit = videoParser.processRtpPacketAndGetNalUnit(data, header.payloadSize, header.marker == 1);
                 }
-                lastTimestamp = ts;
 
                 if (nalUnit != null) {
                     boolean isH265 = sdpInfo.videoTrack.videoCodec == VIDEO_CODEC_H265;
