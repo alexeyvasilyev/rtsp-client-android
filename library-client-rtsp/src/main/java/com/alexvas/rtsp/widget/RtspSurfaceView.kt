@@ -65,6 +65,11 @@ open class RtspSurfaceView: SurfaceView {
         get() = rtspProcessor.debug
         set(value) { rtspProcessor.debug = value }
 
+    /** Audio playback volume gain in range 0.0 (silence) .. 1.0 (max). */
+    var volume: Float
+        get() = rtspProcessor.volume
+        set(value) { rtspProcessor.volume = value }
+
     /** Enables decoder-side playback smoothing. Disabled by default. */
     var videoFrameRateStabilization: Boolean
         get() = rtspProcessor.videoFrameRateStabilization

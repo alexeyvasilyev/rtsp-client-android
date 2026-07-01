@@ -119,6 +119,16 @@ class RtspProcessor(
         }
 
     /**
+     * Audio playback volume gain in range 0.0 (silence) .. 1.0 (max).
+     * Applies to the currently playing stream and to any subsequent one.
+     */
+    var volume: Float = 1.0f
+        set(value) {
+            field = value.coerceIn(0.0f, 1.0f)
+            audioDecodeThread?.volume = field
+        }
+
+    /**
      * Status listener for getting RTSP event updates.
      */
     var statusListener: RtspStatusListener? = null
@@ -434,6 +444,7 @@ class RtspProcessor(
                 audioMimeType, audioSampleRate, audioChannelCount, audioCodecConfig, audioFrameQueue)
             audioDecodeThread!!.apply {
                 name = "RTSP audio thread [${getUriName()}]"
+                volume = this@RtspProcessor.volume
                 start()
             }
         }

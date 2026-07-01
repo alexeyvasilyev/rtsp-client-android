@@ -15,6 +15,20 @@ class AudioDecodeThread (
 
     private var isRunning = true
 
+    @Volatile
+    private var audioTrack: AudioTrack? = null
+
+    /**
+     * Playback volume gain in range 0.0 (silence) .. 1.0 (max, unmodified signal).
+     * Can be changed at any time, before or after the thread is started.
+     */
+    @Volatile
+    var volume: Float = 1.0f
+        set(value) {
+            field = value.coerceIn(0.0f, 1.0f)
+            audioTrack?.setVolume(field)
+        }
+
     fun stopAsync() {
         if (DEBUG) Log.v(TAG, "stopAsync()")
         isRunning = false
@@ -113,6 +127,9 @@ class AudioDecodeThread (
                 bufferSize,
                 AudioTrack.MODE_STREAM,
                 0)
+        this.audioTrack = audioTrack
+        // Apply volume requested before the track was created
+        audioTrack.setVolume(volume)
         audioTrack.play()
 
         val bufferInfo = MediaCodec.BufferInfo()
@@ -182,6 +199,7 @@ class AudioDecodeThread (
         }
         audioTrack.flush()
         audioTrack.release()
+        this.audioTrack = null
 
         try {
             decoder.stop()

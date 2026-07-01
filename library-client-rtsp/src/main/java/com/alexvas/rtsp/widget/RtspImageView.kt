@@ -59,6 +59,11 @@ class RtspImageView : ImageView {
         get() = rtspProcessor.debug
         set(value) { rtspProcessor.debug = value }
 
+    /** Audio playback volume gain in range 0.0 (silence) .. 1.0 (max). */
+    var volume: Float
+        get() = rtspProcessor.volume
+        set(value) { rtspProcessor.volume = value }
+
     constructor(context: Context) : super(context) {
         initView(context, null, 0)
     }
