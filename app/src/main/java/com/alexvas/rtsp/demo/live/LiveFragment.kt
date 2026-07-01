@@ -11,6 +11,7 @@ import android.view.PixelCopy
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.SeekBar
 import android.widget.Toast
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.net.toUri
@@ -286,6 +287,16 @@ class LiveFragment : Fragment() {
         binding.cbExperimentalRewriteSps.setOnCheckedChangeListener { _, isChecked ->
             binding.svVideoSurface.experimentalUpdateSpsFrameWithLowLatencyParams = isChecked
         }
+
+        binding.sbVolume.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                val volume = progress / 100f
+                binding.svVideoSurface.volume = volume
+                binding.ivVideoImage.volume = volume
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {}
+        })
 
         binding.bnRotate0.setOnClickListener {
             binding.svVideoSurface.videoRotation = 0
