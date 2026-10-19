@@ -49,7 +49,7 @@ android {
 
 dependencies {
     testImplementation 'junit:junit:4.13.2'
-    implementation 'androidx.annotation:annotation:1.10.0'
+    implementation 'androidx.annotation:annotation:1.11.0'
     implementation 'androidx.media3:media3-exoplayer:1.11.1'
     implementation 'androidx.camera:camera-core:1.6.2' // YUV -> BMP conversion
     implementation 'org.jcodec:jcodec:0.2.5' // SPS frame modification

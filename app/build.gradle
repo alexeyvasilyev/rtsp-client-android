@@ -45,11 +45,11 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 
-    def androidx_navigation_version = '2.10.1'
+    def androidx_navigation_version = '2.10.2'
     implementation "androidx.navigation:navigation-fragment-ktx:$androidx_navigation_version"
     implementation "androidx.navigation:navigation-ui-ktx:$androidx_navigation_version"
 
-    def logcat_core_version = '3.4'
+    def logcat_core_version = '3.6'
     api "com.github.AppDevNext.Logcat:LogcatCoreLib:$logcat_core_version"
     api "com.github.AppDevNext.Logcat:LogcatCoreUI:$logcat_core_version"
 
