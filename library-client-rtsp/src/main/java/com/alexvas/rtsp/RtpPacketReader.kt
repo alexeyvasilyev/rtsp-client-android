@@ -5,6 +5,7 @@ import com.alexvas.utils.NetUtils
 import java.io.Closeable
 import java.io.IOException
 import java.io.InputStream
+import java.io.PushbackInputStream
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
 import java.nio.channels.SelectionKey
@@ -33,7 +34,10 @@ interface RtpPacketReader {
     fun readPayload(data: ByteArray, offset: Int, length: Int)
 }
 
-class TcpRtpPacketReader(private val inputStream: InputStream) : RtpPacketReader {
+class TcpRtpPacketReader(inputStream: InputStream) : RtpPacketReader {
+
+    // Lets RtpHeaderParser.readHeader() rescan bytes of a candidate header which turned out invalid.
+    private val inputStream = PushbackInputStream(inputStream, RtpHeaderParser.PUSHBACK_SIZE)
 
     @Throws(IOException::class)
     override fun readHeader(): RtpHeaderParser.RtpHeader? =
@@ -99,7 +103,7 @@ class UdpRtpPacketReader @Throws(IOException::class) constructor(
     override fun close() {
         try {
             selector.close()
-        } catch (ignored: IOException) {
+        } catch (_: IOException) {
         }
     }
 
