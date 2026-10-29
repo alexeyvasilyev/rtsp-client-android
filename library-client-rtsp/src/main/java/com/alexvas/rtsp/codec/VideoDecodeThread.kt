@@ -156,9 +156,9 @@ abstract class VideoDecodeThread (
         // priority=0, color-standard=1, feature-secure-playback=0, color-transfer=3, sar-height=1,
         // crop-bottom=1087, max-width=8192, crop-left=0, width=1920, color-range=2, crop-top=0,
         // rotation-degrees=0, frame-rate=30, height=1088}
-        height = height / 16 * 16 // 1088 -> 1080
-//        if (height == 1088)
-//            height = 1080
+        // Crop parameters already give the correct height. Without crop fix only 1088 -> 1080.
+        if (!hasCrop && height == 1088)
+            height = 1080
         return Pair(width, height)
     }
 
@@ -238,10 +238,20 @@ abstract class VideoDecodeThread (
                 }
             }
         }
-        decoder.setOnFrameRenderedListener(frameRenderedListener, null)
-        val format = getDecoderMediaFormat(decoder)
-        decoderCreated(decoder, format)
-        decoder.start()
+        try {
+            decoder.setOnFrameRenderedListener(frameRenderedListener, null)
+            val format = getDecoderMediaFormat(decoder)
+            decoderCreated(decoder, format)
+            decoder.start()
+        } catch (e: Throwable) {
+            // Do not leak codec instance (number of hardware codec instances is limited)
+            try {
+                decoder.release()
+            } catch (e2: Throwable) {
+                Log.e(TAG, "Failed to release decoder", e2)
+            }
+            throw e
+        }
 
         val capabilities = decoder.codecInfo.getCapabilitiesForType(mimeType)
         val lowLatencySupport = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -332,7 +342,14 @@ abstract class VideoDecodeThread (
                                 Log.d(TAG, "Empty video frame")
                                 // Release input buffer
                                 decoder.queueInputBuffer(inIndex, 0, 0, 0L, 0)
+                            } else if (byteBuffer == null || frame.length > byteBuffer.capacity()) {
+                                Log.e(TAG, "Video frame (${frame.length} bytes) does not fit decoder input buffer (${byteBuffer?.capacity()} bytes). Skipping.")
+                                // Release input buffer
+                                decoder.queueInputBuffer(inIndex, 0, 0, 0L, 0)
                             } else {
+                                // Despite the name, timestampMs is already in microseconds for 90 kHz
+                                // video (see RtpHeader.getTimestampMsec()), as MediaCodec expects.
+                                val ptsUs = frame.timestampMs
                                 // Add timestamp for keyframe to calculating latency further.
                                 if ((DEBUG || decoderLatencyRequested) && frame.isKeyframe) {
                                     if (keyframesTimestamps.size > 5) {
@@ -340,7 +357,7 @@ abstract class VideoDecodeThread (
                                         keyframesTimestamps.clear()
                                     }
                                     val l = System.currentTimeMillis()
-                                    keyframesTimestamps[frame.timestampMs] = l
+                                    keyframesTimestamps[ptsUs] = l
 //                                  Log.d(TAG, "Added $l")
                                 }
                                 // Calculate network latency
@@ -349,7 +366,7 @@ abstract class VideoDecodeThread (
                                 else
                                     -1
 
-                                byteBuffer?.put(frame.data, frame.offset, frame.length)
+                                byteBuffer.put(frame.data, frame.offset, frame.length)
                                 if (DEBUG) {
                                     val l = System.currentTimeMillis()
                                     Log.i(TAG, "\tFrame queued (${l - frameQueuedMsec}) ${if (frame.isKeyframe) "key frame" else ""}")
@@ -357,7 +374,8 @@ abstract class VideoDecodeThread (
                                 }
                                 val flags = if (frame.isKeyframe)
                                     (MediaCodec.BUFFER_FLAG_KEY_FRAME /*or MediaCodec.BUFFER_FLAG_CODEC_CONFIG*/) else 0
-                                decoder.queueInputBuffer(inIndex, frame.offset, frame.length, frame.timestampMs, flags)
+                                // Data copied to the beginning of the input buffer, so offset is 0
+                                decoder.queueInputBuffer(inIndex, 0, frame.length, ptsUs, flags)
 
                                 if (frame.isKeyframe) {
                                     // Obtain width and height from stream. AV1 has no NAL/SPS to
@@ -455,13 +473,7 @@ abstract class VideoDecodeThread (
                             break
                         }
                     } catch (_: InterruptedException) {
-                    } catch (e: IllegalStateException) {
-                        // Restarting decoder in software mode
-                        Log.e(TAG, "${e.message}", e)
-                        stopAndReleaseVideoDecoder(decoder)
-                        Log.i(TAG, "Starting software video decoder...")
-                        decoder = createVideoDecoderAndStart(DecoderType.SOFTWARE)
-                        Log.i(TAG, "Software video decoder '${decoder.name}' started (${decoder.codecInfo.getCapabilitiesForType(mimeType).capabilitiesToString()})")
+                    // CodecException extends IllegalStateException, so it must be caught first
                     } catch (e: MediaCodec.CodecException) {
                         Log.w(TAG, "${e.diagnosticInfo}\nisRecoverable: ${e.isRecoverable}, isTransient: ${e.isTransient}")
                         if (e.isRecoverable) {
@@ -489,6 +501,13 @@ abstract class VideoDecodeThread (
                             decoder = createVideoDecoderAndStart(DecoderType.SOFTWARE)
                             Log.i(TAG, "Software video decoder '${decoder.name}' started (${decoder.codecInfo.getCapabilitiesForType(mimeType).capabilitiesToString()})")
                         }
+                    } catch (e: IllegalStateException) {
+                        // Restarting decoder in software mode
+                        Log.e(TAG, "${e.message}", e)
+                        stopAndReleaseVideoDecoder(decoder)
+                        Log.i(TAG, "Starting software video decoder...")
+                        decoder = createVideoDecoderAndStart(DecoderType.SOFTWARE)
+                        Log.i(TAG, "Software video decoder '${decoder.name}' started (${decoder.codecInfo.getCapabilitiesForType(mimeType).capabilitiesToString()})")
                     } catch (e: Throwable) {
                         Log.e(TAG, "${e.message}", e)
                     }

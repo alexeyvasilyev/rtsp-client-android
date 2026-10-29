@@ -46,13 +46,17 @@ class VideoDecoderBitmapThread(
             if (colorConverter == null)
                 colorConverter = ColorConverterImageAndroidX()
             // Converting YUV 4:2:0 888 to Bitmap ARGB 8888
-            var bitmap = colorConverter!!.getBitmapFromImage(image)
+            val argbBitmap = colorConverter!!.getBitmapFromImage(image)
             // Rotation does not work in VideoDecoderThread since we do not use Surface there.
             // Rotate bitmaps.
-            bitmap = if (rotation != 0) {
-                bitmap.rotateBitmap(rotation.toFloat())
+            val bitmap = if (rotation != 0) {
+                argbBitmap.rotateBitmap(rotation.toFloat()).also { rotated ->
+                    // Intermediate ARGB bitmap is not used anymore. Free its memory immediately
+                    // instead of waiting for GC (~8 MB per 1080p frame).
+                    if (rotated !== argbBitmap) argbBitmap.recycle()
+                }
             } else {
-                bitmap.createCopy565()
+                argbBitmap
             }
             uiHandler.post {
                 if (!firstFrameRendered) {

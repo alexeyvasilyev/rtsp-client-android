@@ -1,5 +1,6 @@
 package com.alexvas.rtsp.codec
 
+import android.util.Log
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.TimeUnit
 
@@ -11,7 +12,40 @@ enum class AudioCodecType {
     AAC_LC, G711_ALAW, G711_MLAW, UNKNOWN
 }
 
-class VideoFrameQueue(frameQueueCapacity: Int): FrameQueue<FrameQueue.VideoFrame>(frameQueueCapacity)
+/**
+ * Queue for video frames. On overflow the queue is cleared and all subsequent frames are skipped
+ * till the next keyframe. Otherwise decoder would get P-frames without their reference frames
+ * and show artifacts till the next keyframe anyway.
+ */
+class VideoFrameQueue(frameQueueCapacity: Int): FrameQueue<FrameQueue.VideoFrame>(frameQueueCapacity) {
+
+    @Volatile private var waitingForKeyframe = false
+
+    @Throws(InterruptedException::class)
+    override fun push(frame: VideoFrame): Boolean {
+        if (waitingForKeyframe) {
+            if (!frame.isKeyframe)
+                return false
+            waitingForKeyframe = false
+            Log.i(TAG, "Keyframe received, resuming video frames queueing")
+        }
+        if (super.push(frame))
+            return true
+
+        Log.w(TAG, "Video frame queue is full. Clearing it and skipping frames till the next keyframe.")
+        clear()
+        if (frame.isKeyframe)
+            return super.push(frame)
+        waitingForKeyframe = true
+        return false
+    }
+
+    companion object {
+        private val TAG: String = VideoFrameQueue::class.java.simpleName
+    }
+
+}
+
 class AudioFrameQueue(frameQueueCapacity: Int): FrameQueue<FrameQueue.AudioFrame>(frameQueueCapacity)
 
 /**
@@ -58,7 +92,7 @@ open class FrameQueue<T>(private val frameQueueCapacity: Int) {
         get() = frameQueueCapacity
 
     @Throws(InterruptedException::class)
-    fun push(frame: T): Boolean {
+    open fun push(frame: T): Boolean {
         if (queue.offer(frame, 5, TimeUnit.MILLISECONDS)) {
             return true
         }

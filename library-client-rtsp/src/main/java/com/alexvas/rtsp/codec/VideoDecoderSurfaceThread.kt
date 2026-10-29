@@ -34,8 +34,8 @@ class VideoDecoderSurfaceThread(
     private var playbackStartRealtimeNs: Long? = null
 
     /**
-     * Timestamp of the most recently released frame to enforce minimum spacing between consecutive
-     * frames.
+     * Timestamp of the most recently rendered (not dropped) frame to enforce minimum spacing between
+     * consecutive frames and to limit how long frames can be dropped in a row.
      */
     private var lastFrameReleaseTimeNs: Long = Long.MIN_VALUE
 
@@ -87,6 +87,14 @@ class VideoDecoderSurfaceThread(
             targetNs = adjustedNowNs
         }
 
+        if (targetNs - adjustedNowNs > MAX_EARLY_NS) {
+            // Frame scheduled too far in the future (PTS jumped forward, camera clock runs faster
+            // than device one, backlog after network stall). Re-base the clock to keep latency bounded.
+            streamStartPtsUs = ptsUs
+            playbackStartRealtimeNs = adjustedNowNs
+            targetNs = adjustedNowNs
+        }
+
         if (lastFrameReleaseTimeNs != Long.MIN_VALUE) {
             // Ensure we never schedule two frames closer together than the min spacing.
             targetNs = max(targetNs, lastFrameReleaseTimeNs + MIN_FRAME_SPACING_NS)
@@ -96,18 +104,30 @@ class VideoDecoderSurfaceThread(
         val latenessNs = adjustedNowNs - targetNs
 
         if (latenessNs >= FRAME_DROP_THRESHOLD_NS) {
-            // Frame is critically late; drop to keep playback responsive.
-            mediaCodec.releaseOutputBuffer(outIndex, false)
+            if (videoFrameQueue.size > 0 && adjustedNowNs - lastFrameReleaseTimeNs < MAX_DROP_DURATION_NS) {
+                // Frame is critically late and there is a backlog of frames. Drop it and keep the
+                // time base, so that next frames get closer to real time and playback catches up with live.
+                mediaCodec.releaseOutputBuffer(outIndex, false)
+                lastPresentationTimeUs = ptsUs
+                return
+            }
+            // No backlog (or dropping for too long): delay became persistent, nothing to catch up.
+            // Render this (most recent) frame immediately and re-base the clock to it, otherwise all
+            // subsequent frames remain late and get dropped forever.
+            streamStartPtsUs = ptsUs
+            playbackStartRealtimeNs = adjustedNowNs
+            mediaCodec.releaseOutputBuffer(outIndex, true)
             lastFrameReleaseTimeNs = adjustedNowNs
+            lastPresentationTimeUs = ptsUs
             return
         }
 
         var correctedTargetNs = targetNs
         if (latenessNs > 0) {
-            // For mild lateness, shift the playback baseline forward so future frames stay aligned.
-            val correction = minOf(latenessNs, FRAME_DROP_THRESHOLD_NS)
-            playbackStartRealtimeNs = playbackStartRealtimeNs?.plus(correction)
-            correctedTargetNs += correction
+            // For mild lateness (always below FRAME_DROP_THRESHOLD_NS here), shift the playback
+            // baseline forward so future frames stay aligned.
+            playbackStartRealtimeNs = playbackStartRealtimeNs?.plus(latenessNs)
+            correctedTargetNs += latenessNs
         }
 
         if (correctedTargetNs <= adjustedNowNs + RENDER_EARLY_MARGIN_NS) {
@@ -136,6 +156,8 @@ class VideoDecoderSurfaceThread(
         }
 
         if (!hasVideoFrameRateStabilization()) {
+            // Stabilization can be re-enabled later. Start timing from scratch then, not from stale anchors.
+            if (streamStartPtsUs != null) resetFrameTiming()
             mediaCodec.releaseOutputBuffer(outIndex, true)
         } else {
             releaseOutputBufferWithFrameRateStabilization(mediaCodec, outIndex, bufferInfo)
@@ -157,6 +179,10 @@ class VideoDecoderSurfaceThread(
 
     companion object {
         private val FRAME_DROP_THRESHOLD_NS = TimeUnit.MILLISECONDS.toNanos(80)
+        /** Max time a frame can be scheduled ahead of now. Bounds latency added by stabilization. */
+        private val MAX_EARLY_NS = TimeUnit.MILLISECONDS.toNanos(150)
+        /** Max time late frames can be dropped in a row while catching up with live. */
+        private val MAX_DROP_DURATION_NS = TimeUnit.MILLISECONDS.toNanos(500)
         private val MIN_FRAME_SPACING_NS = TimeUnit.MILLISECONDS.toNanos(1)
         private val RENDER_EARLY_MARGIN_NS = TimeUnit.MILLISECONDS.toNanos(2)
     }
