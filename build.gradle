@@ -1,18 +1,18 @@
 buildscript {
 
-  ext.kotlin_version = '2.4.20'
+  ext.kotlin_version = '2.4.21'
   ext.compile_sdk_version = 37
   ext.min_sdk_version = 24
   ext.target_sdk_version = 36
-  ext.project_version_code = 612
-  ext.project_version_name = '6.1.2'
+  ext.project_version_code = 613
+  ext.project_version_name = '6.1.3'
 
   repositories {
     google()
     mavenCentral()
   }
   dependencies {
-    classpath 'com.android.tools.build:gradle:9.4.1'
+    classpath 'com.android.tools.build:gradle:9.5.0'
     classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     classpath "org.jetbrains.kotlin:compose-compiler-gradle-plugin:$kotlin_version"
   }
