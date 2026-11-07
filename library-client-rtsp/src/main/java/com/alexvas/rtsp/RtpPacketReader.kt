@@ -24,7 +24,8 @@ interface RtpPacketReader {
     /**
      * Blocks until the next RTP packet (of any track) is available.
      * @return the parsed header, or null if reading should be retried (e.g. a
-     * malformed/foreign packet was skipped, or a keep-alive response was found instead).
+     * malformed/foreign packet was skipped, a keep-alive response was found instead, or
+     * no UDP packet arrived within the poll interval).
      */
     @Throws(IOException::class)
     fun readHeader(): RtpHeaderParser.RtpHeader?
@@ -52,8 +53,7 @@ class TcpRtpPacketReader(inputStream: InputStream) : RtpPacketReader {
 /**
  * Reads RTP packets off up to 3 UDP [DatagramChannel]s (video/audio/application), multiplexed
  * with a [Selector] so a single thread can service them all. Each channel is expected to already
- * be connect()-ed to its track's server RTP address, so the kernel filters out anything not sent
- * by that peer.
+ * be connected to its unicast peer, or bound and joined to a multicast group.
  */
 class UdpRtpPacketReader @Throws(IOException::class) constructor(
     rtpChannels: Array<DatagramChannel?>,
@@ -80,18 +80,17 @@ class UdpRtpPacketReader @Throws(IOException::class) constructor(
             }
             val it = selector.selectedKeys().iterator()
             if (!it.hasNext())
-                continue
+                return null
             val key = it.next()
             it.remove()
             if (!key.isReadable)
                 continue
             val channel = key.channel() as DatagramChannel
             buffer.clear()
-            channel.read(buffer)
+            channel.receive(buffer)
             val length = buffer.position()
-            // Too short, or not a RTP packet (e.g. stray non-RTP traffic). Skip it.
-            val header = RtpHeaderParser.parsePacket(buffer.array(), length) ?: continue
-            return header
+            // Null if too short, or not a RTP packet (e.g. stray non-RTP traffic).
+            return RtpHeaderParser.parsePacket(buffer.array(), length)
         }
         return null
     }
@@ -108,7 +107,8 @@ class UdpRtpPacketReader @Throws(IOException::class) constructor(
     }
 
     companion object {
-        // Selector poll interval, in milliseconds. Bounds how long shutdown (exitFlag) takes to notice.
+        // Selector poll interval, in milliseconds. Bounds how long shutdown (exitFlag), keep-alive
+        // and the no-data timeout take to notice.
         private const val SELECT_TIMEOUT_MSEC = 500L
     }
 }

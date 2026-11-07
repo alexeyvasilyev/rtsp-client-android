@@ -97,7 +97,8 @@ class RtspImageView : ImageView {
             password,
             userAgent,
             socketTimeout ?: RtspProcessor.DEFAULT_SOCKET_TIMEOUT,
-            transport
+            transport,
+            context
         )
     }
 

@@ -1,5 +1,7 @@
 package com.alexvas.rtsp;
 
+import android.content.Context;
+import android.net.wifi.WifiManager;
 import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
@@ -7,6 +9,7 @@ import android.util.Pair;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
 import com.alexvas.rtsp.parser.AacParser;
 import com.alexvas.rtsp.parser.G711Parser;
@@ -33,8 +36,10 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.DatagramChannel;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -168,6 +173,8 @@ public class RtspClient {
         TCP,
         /** RTP/RTCP delivered over dedicated UDP ports (RFC 2326 §C.1.1). */
         UDP,
+        /** RTP/RTCP delivered to a server-selected UDP multicast group. */
+        MULTICAST,
     }
 
     public interface RtspClientListener {
@@ -182,7 +189,8 @@ public class RtspClient {
         void onRtspFailed(@Nullable String message);
     }
 
-    private interface RtspClientKeepAliveListener {
+    @VisibleForTesting
+    interface RtspClientKeepAliveListener {
         void onRtspKeepAliveRequested();
     }
 
@@ -205,6 +213,10 @@ public class RtspClient {
     public abstract static class Track {
         public String request;
         public int payloadType;
+        /** SDP connection address (media-level c= overrides session-level c=). */
+        public @Nullable String connectionAddress;
+        /** SDP media port; zero when the server assigns it during SETUP. */
+        public int port;
 
         /**
          * SRTP crypto suite from "a=crypto:" SDP line (RFC 4568), e.g. "AES_CM_128_HMAC_SHA1_80".
@@ -297,6 +309,7 @@ public class RtspClient {
     private final @Nullable String password;
     private final @Nullable String userAgent;
     private final @NonNull Transport transport;
+    private final @Nullable Context context;
 
     private RtspClient(@NonNull RtspClient.Builder builder) {
         rtspSocket = builder.rtspSocket;
@@ -312,15 +325,31 @@ public class RtspClient {
         debug = builder.debug;
         userAgent = builder.userAgent;
         transport = builder.transport;
+        context = builder.context;
     }
 
+    // UDP sockets outlive the blocks opening them and are closed in the finally section below.
+    @SuppressWarnings("resource")
     public void execute() {
         if (DEBUG) Log.v(TAG, "execute()");
         listener.onRtspConnecting();
-        // Only populated (indices 0=video, 1=audio, 2=application) when transport == UDP.
+        // UDP tracks: indices 0=video, 1=audio, 2=application.
         final DatagramChannel[] udpRtpChannels = new DatagramChannel[3];
         final DatagramSocket[] udpRtcpSockets = new DatagramSocket[3];
+        WifiManager.MulticastLock multicastLock = null;
         try {
+            if (transport == Transport.MULTICAST && context != null) {
+                WifiManager wifi = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+                if (wifi != null) {
+                    multicastLock = wifi.createMulticastLock("rtsp-multicast");
+                    try {
+                        multicastLock.acquire();
+                    } catch (SecurityException e) {
+                        Log.e(TAG, "Add android.permission.CHANGE_WIFI_MULTICAST_STATE to your app's AndroidManifest.xml to use RTSP multicast");
+                        throw e;
+                    }
+                }
+            }
             final InputStream inputStream = rtspSocket.getInputStream();
             final OutputStream outputStream = debug ?
                     new LoggerOutputStream(rtspSocket.getOutputStream()) :
@@ -470,6 +499,7 @@ public class RtspClient {
 // Session: Mzk5MzY2MzUwMTg3NTc2Mzc5NQ;timeout=30
             String session = null;
             int sessionTimeout = 0;
+            final MulticastTransport[] multicastTransports = new MulticastTransport[3];
             for (int i = 0; i < 3; i++) {
                 // 0 - video track, 1 - audio track, 2 - application track
                 checkExitFlag(exitFlag);
@@ -510,6 +540,8 @@ public class RtspClient {
                         transportHeader = "RTP/AVP/UDP;unicast;client_port="
                                 + udpRtpChannels[i].socket().getLocalPort() + "-"
                                 + udpRtcpSockets[i].getLocalPort();
+                    } else if (transport == Transport.MULTICAST) {
+                        transportHeader = "RTP/AVP;multicast";
                     } else {
                         transportHeader = "RTP/AVP/TCP;unicast;interleaved=" + (i == 0 ? "0-1" /*video*/ : "2-3" /*audio*/);
                     }
@@ -566,6 +598,26 @@ public class RtspClient {
                         }
                     }
 
+                    if (transport == Transport.MULTICAST) {
+                        MulticastTransport multicast = MulticastTransport.parse(
+                                getHeader(headers, "Transport"), track.connectionAddress, track.port);
+                        NetworkInterface networkInterface = NetworkInterface.getByInetAddress(rtspSocket.getLocalAddress());
+                        if (networkInterface == null)
+                            throw new IOException("Cannot determine multicast network interface from RTSP connection");
+                        multicastTransports[i] = multicast;
+                        // Tracks sharing an endpoint share a socket, otherwise each of them would
+                        // get its own copy of every packet. readRtpData() splits by payload type.
+                        boolean endpointOpen = false;
+                        for (int j = 0; j < i; j++) {
+                            if (multicastTransports[j] != null && multicast.sameEndpoint(multicastTransports[j]))
+                                endpointOpen = true;
+                        }
+                        if (!endpointOpen) {
+                            udpRtpChannels[i] = multicast.openRtpChannel(networkInterface, UDP_RTP_RECEIVE_BUFFER_SIZE);
+                            udpRtcpSockets[i] = multicast.openRtcpSocket(networkInterface);
+                        }
+                    }
+
                     session = getHeader(headers, "Session");
                     if (!TextUtils.isEmpty(session)) {
                         // ODgyODg3MjQ1MDczODk3NDk4Nw;timeout=30
@@ -614,6 +666,7 @@ public class RtspClient {
             headers = readResponseHeaders(inputStream);
             dumpHeaders(headers);
 
+            Log.i(TAG, "RTSP connected over " + transport);
             listener.onRtspConnected(sdpInfo);
 
             if (sdpInfo.videoTrack != null ||  sdpInfo.audioTrack != null || sdpInfo.applicationTrack != null) {
@@ -639,7 +692,7 @@ public class RtspClient {
                         else
                             sendOptionsCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, authTokenFinal);
 
-                        if (transport == Transport.UDP) {
+                        if (transport != Transport.TCP) {
                             // Unlike TCP-interleaved mode, RTP data never shares this connection,
                             // so the response is safe (and necessary) to read right away -
                             // otherwise it just piles up unread in the socket's receive buffer
@@ -654,7 +707,7 @@ public class RtspClient {
                     }
                 };
 
-                RtpPacketReader reader = (transport == Transport.UDP)
+                RtpPacketReader reader = (transport != Transport.TCP)
                         ? new UdpRtpPacketReader(udpRtpChannels, exitFlag)
                         : new TcpRtpPacketReader(inputStream);
                 // Blocking call unless exitFlag set to true, thread.interrupt() called or connection closed.
@@ -665,6 +718,8 @@ public class RtspClient {
                             exitFlag,
                             listener,
                             sessionTimeout / 2 * 1000,
+                            // Over TCP the blocking read is already bound by this socket timeout.
+                            transport != Transport.TCP ? rtspSocket.getSoTimeout() : 0,
                             keepAliveListener);
                 } finally {
                     if (reader instanceof Closeable closeable) {
@@ -690,31 +745,34 @@ public class RtspClient {
         } catch (UnauthorizedException e) {
             e.printStackTrace();
             listener.onRtspFailedUnauthorized();
-        } catch (InterruptedException e) {
+        } catch (InterruptedException | ClosedByInterruptException e) {
             // Thread interrupted. Expected behavior.
             listener.onRtspDisconnecting();
             listener.onRtspDisconnected();
         } catch (Exception e) {
             e.printStackTrace();
             listener.onRtspFailed(e.getMessage());
-        }
-        try {
-            rtspSocket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        for (DatagramChannel channel : udpRtpChannels) {
-            if (channel != null) {
-                try {
-                    channel.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
+        } finally {
+            try {
+                rtspSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            for (DatagramChannel channel : udpRtpChannels) {
+                if (channel != null) {
+                    try {
+                        channel.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                 }
             }
-        }
-        for (DatagramSocket socket : udpRtcpSockets) {
-            if (socket != null)
-                socket.close();
+            for (DatagramSocket socket : udpRtcpSockets) {
+                if (socket != null)
+                    socket.close();
+            }
+            if (multicastLock != null && multicastLock.isHeld())
+                multicastLock.release();
         }
     }
 
@@ -758,12 +816,14 @@ public class RtspClient {
         }
     }
 
-    private static void readRtpData(
+    @VisibleForTesting
+    static void readRtpData(
             @NonNull RtpPacketReader reader,
             @NonNull SdpInfo sdpInfo,
             @NonNull AtomicBoolean exitFlag,
             @NonNull RtspClientListener listener,
             int keepAliveTimeout,
+            int noDataTimeout,
             @NonNull RtspClientKeepAliveListener keepAliveListener)
     throws IOException {
         byte[] data = EMPTY_ARRAY; // Usually not bigger than MTU = 15KB
@@ -795,18 +855,10 @@ public class RtspClient {
         final SrtpCryptoContext applicationSrtpContext = createSrtpContext(sdpInfo.applicationTrack);
 
         long keepAliveSent = System.currentTimeMillis();
+        long lastPacketReceived = keepAliveSent;
 
         while (!exitFlag.get()) {
             RtpHeaderParser.RtpHeader header = reader.readHeader();
-            if (header == null) {
-                continue;
-//                throw new IOException("No RTP frames found");
-            }
-//          header.dumpHeader();
-            if (header.payloadSize > data.length)
-                data = new byte[header.payloadSize];
-
-            reader.readPayload(data, 0, header.payloadSize);
 
             // Check if keep-alive should be sent
             long l = System.currentTimeMillis();
@@ -814,6 +866,18 @@ public class RtspClient {
                 keepAliveSent = l;
                 keepAliveListener.onRtspKeepAliveRequested();
             }
+
+            if (header == null) {
+                if (noDataTimeout > 0 && l - lastPacketReceived > noDataTimeout && !exitFlag.get())
+                    throw new IOException("No RTP packets received for " + noDataTimeout + " msec");
+                continue;
+            }
+            lastPacketReceived = l;
+//          header.dumpHeader();
+            if (header.payloadSize > data.length)
+                data = new byte[header.payloadSize];
+
+            reader.readPayload(data, 0, header.payloadSize);
 
             // Decrypt SRTP payload in place, if this track is encrypted.
             // Per RFC 3711 sec.3.1, an RTP header extension (X bit set) is authenticated but
@@ -1150,9 +1214,20 @@ public class RtspClient {
     private static Track[] getTracksFromDescribeParams(@NonNull List<Pair<String, String>> params) {
         Track[] tracks = new Track[3];
         Track currentTrack = null;
+        String sessionAddress = null;
+        boolean mediaStarted = false;
         for (Pair<String, String> param: params) {
             switch (param.first) {
+                case "c":
+                    String[] connection = param.second.trim().split("\\s+");
+                    if (connection.length >= 3 && connection[0].equals("IN")) {
+                        if (!mediaStarted) sessionAddress = connection[2];
+                        else if (currentTrack != null) currentTrack.connectionAddress = connection[2];
+                    }
+                    break;
                 case "m":
+                    mediaStarted = true;
+                    currentTrack = null;
                     // m=video 0 RTP/AVP 96
                     if (param.second.startsWith("video")) {
                         currentTrack = new VideoTrack();
@@ -1181,8 +1256,14 @@ public class RtspClient {
                     }
 
                     if (currentTrack != null) {
+                        currentTrack.connectionAddress = sessionAddress;
                         // m=<media> <port>/<number of ports> <proto> <fmt> ...
                         String[] values = TextUtils.split(param.second, " ");
+                        try {
+                            currentTrack.port = Integer.parseInt(values[1].split("/", 2)[0]);
+                        } catch (Exception ignored) {
+                            currentTrack.port = 0;
+                        }
                         try {
                             currentTrack.payloadType = (values.length > 3 ? Integer.parseInt(values[3]) : -1);
                             // Handle static PT that comes with no rtpmap
@@ -1888,6 +1969,7 @@ public class RtspClient {
         private @Nullable String password = null;
         private @Nullable String userAgent = DEFAULT_USER_AGENT;
         private @NonNull Transport transport = Transport.TCP;
+        private @Nullable Context context;
 
         public Builder(
                 @NonNull Socket rtspSocket,
@@ -1917,6 +1999,15 @@ public class RtspClient {
         @NonNull
         public Builder withTransport(@NonNull Transport transport) {
             this.transport = transport;
+            return this;
+        }
+
+        /** Enables Wi-Fi multicast reception for MULTICAST; only the application context is retained.
+         * Without a context the caller is responsible for holding a WifiManager.MulticastLock.
+         */
+        @NonNull
+        public Builder withContext(@NonNull Context context) {
+            this.context = context.getApplicationContext();
             return this;
         }
 

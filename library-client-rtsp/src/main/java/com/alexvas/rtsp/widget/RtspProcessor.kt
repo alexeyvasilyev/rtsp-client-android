@@ -1,12 +1,12 @@
 package com.alexvas.rtsp.widget
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.media.MediaFormat
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import androidx.media3.container.NalUnitUtil
 import com.alexvas.rtsp.RtspClient
 import com.alexvas.rtsp.RtspClient.SdpInfo
 import com.alexvas.rtsp.codec.AudioCodecType
@@ -59,6 +59,7 @@ class RtspProcessor(
     private var requestVideo = true
     private var requestAudio = true
     private var requestApplication = false
+    private var context: Context? = null
     private var transport = RtspClient.Transport.TCP
     private var rtspThread: RtspThread? = null
     private var videoFrameQueue = VideoFrameQueue(60)
@@ -202,7 +203,7 @@ class RtspProcessor(
                     vps.copyInto(data, offset, 0, vps.size)
                     videoFrameQueue.push(
                         FrameQueue.VideoFrame(
-                            VideoCodecType.H264,
+                            if (videoMimeType == MediaFormat.MIMETYPE_VIDEO_HEVC) VideoCodecType.H265 else VideoCodecType.H264,
                             isKeyframe = true,
                             data,
                             0,
@@ -211,19 +212,28 @@ class RtspProcessor(
                         )
                     )
                     try {
-                        val startNalOffset = if (sps[3] == 1.toByte()) 5 else 4
-                        val spsData = NalUnitUtil.parseSpsNalUnitPayload(
-                            data, startNalOffset, data.size - startNalOffset)
-                        if (spsData.maxNumReorderFrames > 0) {
-                            Log.w(
-                                TAG, "SPS frame param max_num_reorder_frames=" +
-                                    "${spsData.maxNumReorderFrames} is too high" +
-                                    " for low latency decoding (expecting 0)."
-                            )
+                        val spsDescription = if (videoMimeType == MediaFormat.MIMETYPE_VIDEO_HEVC) {
+                            val parsed = VideoCodecUtils.getH265SpsNalUnitFromArray(sps, 0, sps.size)
+                            parsed?.let {
+                                if (it.maxNumReorderPics > 0)
+                                    Log.w(TAG, "H.265 SPS max_num_reorder_pics=${it.maxNumReorderPics} may increase decoding latency")
+                                "width=${it.width}, height=${it.height}, " +
+                                    "profile_idc=${it.profileTierLevel?.generalProfileIdc}, " +
+                                    "level_idc=${it.profileTierLevel?.generalLevelIdc}, " +
+                                    "max_num_reorder_pics=${it.maxNumReorderPics}"
+                            }
+                        } else {
+                            val parsed = VideoCodecUtils.getSpsNalUnitFromArray(sps, 0, sps.size, false)
+                            parsed?.let {
+                                if (it.maxNumReorderFrames > 0)
+                                    Log.w(TAG, "SPS frame param max_num_reorder_frames=${it.maxNumReorderFrames}" +
+                                        " is too high for low latency decoding (expecting 0).")
+                                it.spsDataToString()
+                            }
                         }
                         if (debug) {
                             Log.d(TAG, "SPS frame: ${sps.toHexString(0, sps.size)}")
-                            Log.d(TAG, "\t${spsData.spsDataToString()}")
+                            Log.d(TAG, "\t${spsDescription ?: "SPS parameters unavailable"}")
                             Log.d(TAG, "PPS frame: ${pps.toHexString(0, pps.size)}")
                             if (vps.isNotEmpty())
                                 Log.d(TAG, "VPS frame: ${vps.toHexString(0, vps.size)}")
@@ -302,18 +312,20 @@ class RtspProcessor(
                 Log.d(TAG, "NALs: $b")
                 @SuppressLint("UnsafeOptInUsageError")
                 if (isKeyframe) {
-                    val sps = VideoCodecUtils.getSpsNalUnitFromArray(
-                        videoFrame.data,
-                        videoFrame.offset,
-                        // Check only first 100 bytes maximum. That's enough for finding SPS NAL unit.
-                        Integer.min(videoFrame.length, VideoCodecUtils.MAX_NAL_SPS_SIZE),
-                        isH265
+                    val sps = if (isH265) null else VideoCodecUtils.getSpsNalUnitFromArray(
+                        videoFrame.data, videoFrame.offset,
+                        min(videoFrame.length, VideoCodecUtils.MAX_NAL_SPS_SIZE), false
+                    )
+                    val h265Sps = if (!isH265) null else VideoCodecUtils.getH265SpsNalUnitFromArray(
+                        videoFrame.data, videoFrame.offset,
+                        min(videoFrame.length, VideoCodecUtils.MAX_NAL_SPS_SIZE)
                     )
                     Log.d(TAG,
                         "\tKey frame received (${videoFrame.length} bytes, ts=$timestamp," +
-                        " ${sps?.width}x${sps?.height}," +
+                        " ${sps?.width ?: h265Sps?.width}x${sps?.height ?: h265Sps?.height}," +
                         " GoP=$framesPerGop," +
-                        " profile=${sps?.profileIdc}, level=${sps?.levelIdc})")
+                        " profile=${sps?.profileIdc ?: h265Sps?.profileTierLevel?.generalProfileIdc}," +
+                        " level=${sps?.levelIdc ?: h265Sps?.profileTierLevel?.generalLevelIdc})")
                     framesPerGop = 0
                 } else {
                     framesPerGop++
@@ -416,6 +428,7 @@ class RtspProcessor(
                     .withUserAgent(userAgent)
                     .withCredentials(username, password)
                     .withTransport(transport)
+                    .apply { context?.let { withContext(it) } }
                     .build()
                 rtspClient.execute()
             } catch (e: Exception) {
@@ -503,6 +516,7 @@ class RtspProcessor(
         userAgent: String? = null,
         socketTimeout: Int = DEFAULT_SOCKET_TIMEOUT,
         transport: RtspClient.Transport = RtspClient.Transport.TCP,
+        context: Context? = null,
     ) {
         if (DEBUG) Log.v(TAG, "init(uri='$uri', username='$username', password='$password', userAgent='$userAgent', socketTimeout=$socketTimeout, transport=$transport)")
         this.uri = uri
@@ -511,6 +525,7 @@ class RtspProcessor(
         this.userAgent = userAgent
         this.socketTimeoutMsec = socketTimeout
         this.transport = transport
+        this.context = context?.applicationContext
     }
 
     fun start(requestVideo: Boolean, requestAudio: Boolean, requestApplication: Boolean = false) {

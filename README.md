@@ -8,7 +8,7 @@ Unlike [AndroidX Media ExoPlayer](https://github.com/androidx/media) which also 
 ![Screenshot](docs/images/rtsp-demo-app.webp?raw=true "Screenshot")
 
 ## Features:
-- RTSP/RTSPS over TCP/UDP.
+- RTSP/RTSPS over TCP/UDP, including UDP multicast.
 - Supports majority of RTSP IP cameras.
 - Video H.264/H.265/AV1.
 - Audio AAC LC, G.711 uLaw, G.711 aLaw, Opus.
@@ -137,3 +137,25 @@ To decrease latency be sure you use the lowest possible H.264 video stream profi
 Check `max_num_reorder_frames` param as well. For best latency it's value should be `0`.
 
 You can also try to use [experimentalUpdateSpsFrameWithLowLatencyParams](https://github.com/alexeyvasilyev/rtsp-client-android/blob/master/library-client-rtsp/src/main/java/com/alexvas/rtsp/widget/RtspProcessor.kt#L106) library feature which rewrites config frame on runtime with low-latency parameters.
+
+### Multicast RTSP
+
+Select `UDP Multicast` in the demo, or pass `RtspClient.Transport.MULTICAST` to
+`RtspSurfaceView.init()` / `RtspImageView.init()`. The RTSP URL still points to the
+server; the client requests `RTP/AVP;multicast` during SETUP and joins the negotiated
+RTP/RTCP group on the network interface used by the RTSP connection. SETUP
+`destination` and `port` override SDP `c=` and `m=` values.
+
+If you want UDP Multicast, add this permission to your app's `AndroidManifest.xml`
+(the library does not declare it):
+
+```xml
+<uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+```
+
+Without it `RtspSurfaceView`, `RtspImageView` and `.withContext(context)` sessions fail
+with `onRtspFailed()` when using `MULTICAST`. TCP and UDP do not need this permission.
+
+When using `RtspClient.Builder` directly, call `.withContext(context)` to hold a
+Wi-Fi multicast lock for the session (the widgets do this automatically), or hold
+your own `WifiManager.MulticastLock`. The network and RTSP server must support multicast.

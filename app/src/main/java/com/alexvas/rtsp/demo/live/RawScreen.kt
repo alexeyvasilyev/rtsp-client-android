@@ -2,6 +2,7 @@ package com.alexvas.rtsp.demo.live
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
@@ -65,7 +66,7 @@ fun RawScreen(liveViewModel: LiveViewModel) {
     var debug by remember { mutableStateOf(false) }
     var transport by remember { mutableStateOf(RtspClient.Transport.TCP) }
     var passwordVisible by remember { mutableStateOf(false) }
-    val player = remember { RawPlayerState() }
+    val player = remember { RawPlayerState(context.applicationContext) }
     var pendingStart by remember { mutableStateOf<(() -> Unit)?>(null) }
     val localNetworkPermissionDenied =
         stringResource(R.string.local_network_permission_denied)
@@ -178,7 +179,7 @@ fun RawScreen(liveViewModel: LiveViewModel) {
 
 /** Owns one raw RTSP session; all UI state updates run on the main thread. */
 @SuppressLint("LogNotTimber")
-private class RawPlayerState {
+private class RawPlayerState(private val context: Context) {
     var isStarted by mutableStateOf(false)
         private set
     var isStopping by mutableStateOf(false)
@@ -287,6 +288,7 @@ private class RawPlayerState {
                         .withUserAgent("rtsp-client-android")
                         .withCredentials(username, password)
                         .withTransport(transport)
+                        .withContext(context)
                         .build()
                         .execute()
                 }

@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -537,7 +538,7 @@ internal fun RtspParamsSection(
         }
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().wrapContentWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -547,7 +548,7 @@ internal fun RtspParamsSection(
                     onClick = { onTransportChange(RtspClient.Transport.TCP) },
                     enabled = enabled,
                 )
-                Text("RTSP/TCP")
+                Text("TCP")
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(
@@ -555,7 +556,15 @@ internal fun RtspParamsSection(
                     onClick = { onTransportChange(RtspClient.Transport.UDP) },
                     enabled = enabled,
                 )
-                Text("RTSP/UDP")
+                Text("UDP")
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(
+                    selected = transport == RtspClient.Transport.MULTICAST,
+                    onClick = { onTransportChange(RtspClient.Transport.MULTICAST) },
+                    enabled = enabled,
+                )
+                Text("UDP Multicast")
             }
         }
     }

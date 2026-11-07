@@ -9,7 +9,21 @@ import java.nio.channels.DatagramChannel
 import java.util.concurrent.atomic.AtomicBoolean
 
 class UdpRtpPacketReaderTest {
-    @Test(timeout = 5000) fun servicesBothReadyTracksAndPreservesDatagrams() {
+    @Test(timeout = 5000) fun servicesBothReadyTracksAndPreservesDatagrams() = readTracks(true)
+
+    @Test(timeout = 5000) fun readsUnconnectedChannelsForMulticast() = readTracks(false)
+
+    @Test(timeout = 5000) fun idleChannelReturnsControlToCaller() {
+        DatagramChannel.open().use { channel ->
+            channel.bind(InetSocketAddress(InetAddress.getLoopbackAddress(), 0))
+            channel.configureBlocking(false)
+            UdpRtpPacketReader(arrayOf(channel), AtomicBoolean()).use { reader ->
+                assertNull(reader.readHeader())
+            }
+        }
+    }
+
+    private fun readTracks(connected: Boolean) {
         val exit = AtomicBoolean()
         val senders = List(2) { DatagramChannel.open() }
         val receivers = List(2) { DatagramChannel.open() }
@@ -17,7 +31,7 @@ class UdpRtpPacketReaderTest {
             for (i in 0..1) {
                 senders[i].bind(InetSocketAddress(InetAddress.getLoopbackAddress(), 0))
                 receivers[i].bind(InetSocketAddress(InetAddress.getLoopbackAddress(), 0))
-                receivers[i].connect(senders[i].localAddress)
+                if (connected) receivers[i].connect(senders[i].localAddress)
                 receivers[i].configureBlocking(false)
                 // Queue both tracks before the first select; a busy track must not starve
                 // the second key left in the selected set.
