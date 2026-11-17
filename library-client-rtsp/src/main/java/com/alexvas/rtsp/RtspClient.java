@@ -310,6 +310,7 @@ public class RtspClient {
     private final @Nullable String userAgent;
     private final @NonNull Transport transport;
     private final @Nullable Context context;
+    private final @NonNull List<Pair<String, String>> playHeaders;
 
     private RtspClient(@NonNull RtspClient.Builder builder) {
         rtspSocket = builder.rtspSocket;
@@ -326,6 +327,7 @@ public class RtspClient {
         userAgent = builder.userAgent;
         transport = builder.transport;
         context = builder.context;
+        playHeaders = builder.playHeaders;
     }
 
     // UDP sockets outlive the blocks opening them and are closed in the finally section below.
@@ -658,7 +660,7 @@ public class RtspClient {
             checkExitFlag(exitFlag);
             if (digestRealmNonce != null)
                 authToken = getDigestAuthHeader(username, password, "PLAY", uriRtsp /*?*/, digestRealmNonce.first, digestRealmNonce.second);
-            sendPlayCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, authToken, session);
+            sendPlayCommand(outputStream, uriRtsp, cSeq.addAndGet(1), userAgent, authToken, session, playHeaders);
             status = readResponseStatusCode(inputStream);
             if (DEBUG)
                 Log.i(TAG, "PLAY status: " + status);
@@ -900,8 +902,20 @@ public class RtspClient {
                     continue; // Dropped: failed SRTP authentication.
             }
 
+            // Audio and application payloads start right after the header extension, if any
+            // (e.g. ONVIF replay adds a 0xABAC NTP timestamp extension to every RTP packet).
+            // Video skips it on its own below.
+            boolean isVideo = sdpInfo.videoTrack != null && header.payloadType == sdpInfo.videoTrack.payloadType;
+            if (!isVideo && header.extension == 1) {
+                if (header.payloadSize < 4) continue;
+                int skipBytes = ((data[2] & 0xFF) << 8 | (data[3] & 0xFF)) * 4 + 4;
+                if (skipBytes >= header.payloadSize) continue;
+                header.payloadSize -= skipBytes;
+                System.arraycopy(data, skipBytes, data, 0, header.payloadSize);
+            }
+
             // Video
-            if (sdpInfo.videoTrack != null && header.payloadType == sdpInfo.videoTrack.payloadType) {
+            if (isVideo) {
                 byte[] nalUnit;
                 // Skip extension bytes, validating against the received packet, not buffer capacity.
                 if (header.extension == 1) {
@@ -1142,11 +1156,19 @@ public class RtspClient {
             int cSeq,
             @Nullable String userAgent,
             @Nullable String authToken,
-            @NonNull String session)
+            @NonNull String session,
+            @NonNull List<Pair<String, String>> extraHeaders)
     throws IOException {
         if (DEBUG) Log.v(TAG, "sendPlayCommand(request=\"" + request + "\", cSeq=" + cSeq + ")");
         outputStream.write(("PLAY " + request + " RTSP/1.0" + CRLF).getBytes());
-        outputStream.write(("Range: npt=0.000-" + CRLF).getBytes());
+        boolean hasRange = false;
+        for (Pair<String, String> header : extraHeaders) {
+            outputStream.write((header.first + ": " + header.second + CRLF).getBytes());
+            if ("Range".equalsIgnoreCase(header.first))
+                hasRange = true;
+        }
+        if (!hasRange)
+            outputStream.write(("Range: npt=0.000-" + CRLF).getBytes());
         if (authToken != null)
             outputStream.write(("Authorization: " + authToken + CRLF).getBytes());
         outputStream.write(("CSeq: " + cSeq + CRLF).getBytes());
@@ -1970,6 +1992,7 @@ public class RtspClient {
         private @Nullable String userAgent = DEFAULT_USER_AGENT;
         private @NonNull Transport transport = Transport.TCP;
         private @Nullable Context context;
+        private @NonNull List<Pair<String, String>> playHeaders = new ArrayList<>();
 
         public Builder(
                 @NonNull Socket rtspSocket,
@@ -2014,6 +2037,16 @@ public class RtspClient {
         @NonNull
         public Builder withUserAgent(@Nullable String userAgent) {
             this.userAgent = userAgent;
+            return this;
+        }
+
+        /**
+         * Additional headers of PLAY, e.g. "Require: onvif-replay", "Scale: 1.0".
+         * "Range" header replaces default "npt=0.000-".
+         */
+        @NonNull
+        public Builder withPlayHeaders(@NonNull List<Pair<String, String>> headers) {
+            this.playHeaders = new ArrayList<>(headers);
             return this;
         }
 
