@@ -461,9 +461,9 @@ public class RtspClient {
 
             String contentBaseUri = getHeaderContentBase(headers);
             if (contentBaseUri != null) {
+                uriRtsp = getUriFromContentBase(uriRtsp, contentBaseUri);
                 if (debug)
                     Log.i(TAG_DEBUG, "RTSP URI changed to '" + uriRtsp + "'");
-                uriRtsp = contentBaseUri;
             }
 
             int contentLength = getHeaderContentLength(headers);
@@ -779,8 +779,20 @@ public class RtspClient {
         }
     }
 
+    /**
+     * Content-Base may contain "user:password@" which should never get into the request line.
+     */
+    @VisibleForTesting
+    @NonNull
+    static String getUriFromContentBase(@NonNull String uriRtsp, @Nullable String contentBase) {
+        if (contentBase == null || contentBase.trim().isEmpty())
+            return uriRtsp;
+        return NetUtils.stripUriUserInfo(contentBase.trim());
+    }
+
+    @VisibleForTesting
     @Nullable
-    private static String getUriForSetup(@NonNull String uriRtsp, @Nullable Track track) {
+    static String getUriForSetup(@NonNull String uriRtsp, @Nullable Track track) {
         if (DEBUG) Log.v(TAG, "getUriForSetup(uriRtsp='" + uriRtsp + "', track=" + track + ")");
         if (track == null)
             return null;
@@ -800,7 +812,8 @@ public class RtspClient {
             }
             uriRtspSetup += track.request;
         }
-        return uriRtspSetup.trim();
+        // Absolute a=control URL may contain "user:password@"
+        return NetUtils.stripUriUserInfo(uriRtspSetup.trim());
     }
 
     private static void checkExitFlag(@NonNull AtomicBoolean exitFlag) throws InterruptedException {
