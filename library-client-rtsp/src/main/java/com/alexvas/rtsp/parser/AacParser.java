@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import androidx.media3.common.util.ParsableBitArray;
 import androidx.media3.common.util.ParsableByteArray;
@@ -39,8 +40,9 @@ public class AacParser extends AudioParser {
 
     private final int _aacMode;
 
-    public AacParser(@NonNull String aacMode) {
-        _aacMode = aacMode.equalsIgnoreCase("AAC-lbr") ? MODE_LBR : MODE_HBR;
+    public AacParser(@Nullable String aacMode) {
+        // "mode" may be missing in SDP fmtp
+        _aacMode = "AAC-lbr".equalsIgnoreCase(aacMode) ? MODE_LBR : MODE_HBR;
 
         headerScratchBits = new ParsableBitArray();
         headerScratchBytes = new ParsableByteArray();

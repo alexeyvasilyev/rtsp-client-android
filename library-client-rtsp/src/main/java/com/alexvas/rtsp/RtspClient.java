@@ -314,7 +314,8 @@ public class RtspClient {
 
     private RtspClient(@NonNull RtspClient.Builder builder) {
         rtspSocket = builder.rtspSocket;
-        uriRtsp = builder.uriRtsp;
+        // Credentials are passed via withCredentials(), never in the request line.
+        uriRtsp = NetUtils.stripUriUserInfo(builder.uriRtsp);
         exitFlag = builder.exitFlag;
         listener = builder.listener;
 //      sendOptionsCommand = builder.sendOptionsCommand;

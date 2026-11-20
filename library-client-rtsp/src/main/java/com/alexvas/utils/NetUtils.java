@@ -126,6 +126,31 @@ public class NetUtils {
         }
     }
 
+    /**
+     * Removes "user:password@" from URI, e.g. "rtsp://user:pass@host:554/path" -> "rtsp://host:554/path".
+     * Some RTSP servers (e.g. Sonoff CAM-B1P, CAM-PT) reset the connection if credentials
+     * are present in the request line.
+     */
+    @NonNull
+    public static String stripUriUserInfo(@NonNull String uri) {
+        int authorityStart = uri.indexOf("://");
+        if (authorityStart < 0)
+            return uri;
+        authorityStart += 3;
+        int authorityEnd = uri.length();
+        for (int i = authorityStart; i < uri.length(); i++) {
+            char c = uri.charAt(i);
+            if (c == '/' || c == '?' || c == '#') {
+                authorityEnd = i;
+                break;
+            }
+        }
+        int at = uri.lastIndexOf('@', authorityEnd - 1);
+        if (at < authorityStart)
+            return uri;
+        return uri.substring(0, authorityStart) + uri.substring(at + 1);
+    }
+
     @NonNull
     public static ArrayList<String> readResponseHeaders(@NonNull InputStream inputStream) throws IOException {
 //        Assert.assertNotNull("Input stream should not be null", inputStream);
